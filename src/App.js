@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   MapPin,
   Clock,
@@ -328,7 +328,7 @@ function CountdownTimer() {
   );
 }
 
-// --- Home Component (包含真實氣象 API 連線與倒數) ---
+// --- Home Component ---
 function HomeView({
   tripName,
   days,
@@ -411,10 +411,8 @@ function HomeView({
         boxSizing: "border-box",
       }}
     >
-      {/* 1. 出發倒數計時卡片 */}
       <CountdownTimer />
 
-      {/* 2. 封面圖 */}
       <div
         style={{
           position: "relative",
@@ -568,7 +566,6 @@ function HomeView({
         </div>
       )}
 
-      {/* 3. 天氣與概覽 */}
       <div
         style={{
           display: "grid",
@@ -1920,8 +1917,9 @@ export default function App() {
   const [expenseModal, setExpenseModal] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
-  // 拖曳狀態控制
+  // 電腦 + 手機通用拖曳狀態
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     const tripRef = doc(db, "trips", "kyoto-trip");
@@ -1938,7 +1936,7 @@ export default function App() {
 
           const sortedDays = (data.days || []).map((d) => ({
             ...d,
-            items: d.items || [], // 允許保持拖曳後的順序
+            items: d.items || [],
           }));
 
           setDays(sortedDays);
@@ -2195,7 +2193,7 @@ export default function App() {
     saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
   }
 
-  // 卡片拖曳排序處理（Drag & Drop）
+  // --- 電腦滑鼠 Drag & Drop 邏輯 ---
   const handleDragStart = (index) => {
     setDraggedItemIndex(index);
   };
@@ -2219,6 +2217,44 @@ export default function App() {
   const handleDragEnd = () => {
     setDraggedItemIndex(null);
     saveNow(tripName, days, expenses, notes, todos, coverImage);
+  };
+
+  // --- 手機觸控 Touch 拖曳邏輯 ---
+  const handleTouchStart = (index) => {
+    setDraggedItemIndex(index);
+  };
+
+  const handleTouchMove = (e) => {
+    if (draggedItemIndex === null) return;
+    const touchY = e.touches[0].clientY;
+
+    if (containerRef.current) {
+      const cards = containerRef.current.querySelectorAll(".itinerary-card");
+      cards.forEach((card, index) => {
+        const rect = card.getBoundingClientRect();
+        if (touchY >= rect.top && touchY <= rect.bottom) {
+          if (index !== draggedItemIndex) {
+            const newItems = [...currentDay.items];
+            const draggedItem = newItems[draggedItemIndex];
+            newItems.splice(draggedItemIndex, 1);
+            newItems.splice(index, 0, draggedItem);
+
+            setDraggedItemIndex(index);
+            const updatedDays = days.map((d) =>
+              d.id === currentDay.id ? { ...d, items: newItems } : d
+            );
+            setDays(updatedDays);
+          }
+        }
+      });
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (draggedItemIndex !== null) {
+      setDraggedItemIndex(null);
+      saveNow(tripName, days, expenses, notes, todos, coverImage);
+    }
   };
 
   function saveExpense(expense) {
@@ -2632,8 +2668,13 @@ export default function App() {
                     </div>
                   )}
 
-                  <div style={{ position: "relative" }}>
-                    {/* 左側時間貫穿軸線（穿過 Icon 後方，底色蓋住文字不遮擋） */}
+                  <div
+                    ref={containerRef}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    style={{ position: "relative" }}
+                  >
+                    {/* 左側時間貫穿軸線 */}
                     {currentDay.items.length > 0 && (
                       <div
                         style={{
@@ -2668,11 +2709,11 @@ export default function App() {
                       return (
                         <div
                           key={item.id}
+                          className="itinerary-card card-enter"
                           draggable
                           onDragStart={() => handleDragStart(idx)}
                           onDragOver={(e) => handleDragOver(e, idx)}
                           onDragEnd={handleDragEnd}
-                          className="card-enter"
                           style={{
                             position: "relative",
                             paddingLeft: 52,
@@ -2681,7 +2722,7 @@ export default function App() {
                             transition: "opacity 0.2s",
                           }}
                         >
-                          {/* 左側圖示與時間 (背景色覆蓋軸線，乾淨不重疊) */}
+                          {/* 左側圖示與時間 (遮罩底色不擋線) */}
                           <div
                             style={{
                               position: "absolute",
@@ -2709,7 +2750,6 @@ export default function App() {
                               <IconCmp size={13} color={cfg.color} />
                             </div>
 
-                            {/* 時間標籤背景設為 #FAF6EF 蓋住時間軸線 */}
                             {item.time && (
                               <div
                                 style={{
@@ -2910,16 +2950,18 @@ export default function App() {
                                   flexShrink: 0,
                                 }}
                               >
-                                {/* 拖曳抓握手把 */}
+                                {/* 手機 + 電腦通用拖曳手把 */}
                                 <div
+                                  onTouchStart={() => handleTouchStart(idx)}
                                   style={{
                                     cursor: "grab",
                                     color: "#C9BFA8",
-                                    padding: "2px",
+                                    padding: "6px",
+                                    touchAction: "none",
                                   }}
-                                  title="長按拖曳調整順序"
+                                  title="按住拖曳順序"
                                 >
-                                  <GripVertical size={18} />
+                                  <GripVertical size={20} />
                                 </div>
 
                                 <div style={{ display: "flex", gap: 6 }}>
