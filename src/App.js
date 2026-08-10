@@ -26,6 +26,7 @@ import {
   Camera,
   RefreshCw,
   Check,
+  GripVertical,
 } from "lucide-react";
 
 // --- 1. Firebase 初始化 ---
@@ -140,7 +141,7 @@ const PAYMENT_METHODS = {
 };
 
 const SAMPLE_TRIP = {
-  tripName: "京都三日散策",
+  tripName: "日本高山中部散策",
   coverImage:
     "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1200&q=80",
   notes:
@@ -153,31 +154,33 @@ const SAMPLE_TRIP = {
   days: [
     {
       id: uid(),
-      date: todayISO(),
+      date: "2026-08-15",
       items: [
         {
           id: uid(),
-          type: "spot",
-          time: "16:30",
-          title: "竹林小徑",
-          place: "嵐山竹林の道",
-          note: "傍晚人少,適合拍照",
+          type: "transport",
+          time: "06:52",
+          arriveTime: "10:30",
+          title: "星宇航空 桃園 ✈ 名古屋",
+          origin: "桃園國際機場",
+          destination: "中部國際機場",
+          note: "預計 06:52 起飛",
         },
         {
           id: uid(),
-          type: "food",
-          time: "19:00",
-          title: "嵐山鰻魚飯",
-          place: "広川 嵐山",
-          note: "需預約,現金優先",
+          type: "spot",
+          time: "14:00",
+          title: "高山陣屋散策",
+          place: "高山陣屋",
+          note: "歷史古蹟參觀",
         },
         {
           id: uid(),
           type: "stay",
           time: "",
-          title: "嵐山悠然町家",
-          place: "嵐山悠然町家 京都",
-          note: "提前寄放行李,check-in 15:00",
+          title: "高山飛驒溫泉飯店",
+          place: "高山飛驒溫泉飯店",
+          note: "Check-in 15:00",
         },
       ],
     },
@@ -214,7 +217,118 @@ function Field({ label, children }) {
   );
 }
 
-// --- Home Component (包含真實氣象 API 連線) ---
+// --- Countdown Component (倒數 2026/08/15 06:52) ---
+function CountdownTimer() {
+  const [timeLeft, setTimeLeft] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    isFinished: false,
+  });
+
+  useEffect(() => {
+    const targetDate = new Date("2026-08-15T06:52:00").getTime();
+
+    const calculateTime = () => {
+      const now = new Date().getTime();
+      const difference = targetDate - now;
+
+      if (difference <= 0) {
+        setTimeLeft({
+          days: 0,
+          hours: 0,
+          minutes: 0,
+          seconds: 0,
+          isFinished: true,
+        });
+        return;
+      }
+
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((difference / 1000 / 60) % 60);
+      const seconds = Math.floor((difference / 1000) % 60);
+
+      setTimeLeft({ days, hours, minutes, seconds, isFinished: false });
+    };
+
+    calculateTime();
+    const timer = setInterval(calculateTime, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div
+      style={{
+        background: "#2F4538",
+        borderRadius: 14,
+        padding: "16px 18px",
+        color: "#F4EFE3",
+        marginBottom: 16,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          letterSpacing: 1.5,
+          opacity: 0.8,
+          marginBottom: 10,
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <span>✈ 出發倒數 (2026/08/15 06:52)</span>
+      </div>
+
+      {timeLeft.isFinished ? (
+        <div
+          className="serif"
+          style={{ fontSize: 20, fontWeight: 700, color: "#90deb0" }}
+        >
+          🎉 旅程已經展開，祝您旅途愉快！
+        </div>
+      ) : (
+        <div
+          style={{ display: "flex", gap: 8, justifyContent: "space-between" }}
+        >
+          {[
+            { label: "天", val: timeLeft.days },
+            { label: "時", val: timeLeft.hours },
+            { label: "分", val: timeLeft.minutes },
+            { label: "秒", val: timeLeft.seconds },
+          ].map((item, idx) => (
+            <div
+              key={idx}
+              style={{
+                flex: 1,
+                background: "rgba(244, 239, 227, 0.12)",
+                borderRadius: 10,
+                padding: "8px 4px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                className="serif"
+                style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}
+              >
+                {String(item.val).padStart(2, "0")}
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4 }}>
+                {item.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Home Component (包含真實氣象 API 連線與倒數) ---
 function HomeView({
   tripName,
   days,
@@ -297,6 +411,10 @@ function HomeView({
         boxSizing: "border-box",
       }}
     >
+      {/* 1. 出發倒數計時卡片 */}
+      <CountdownTimer />
+
+      {/* 2. 封面圖 */}
       <div
         style={{
           position: "relative",
@@ -450,6 +568,7 @@ function HomeView({
         </div>
       )}
 
+      {/* 3. 天氣與概覽 */}
       <div
         style={{
           display: "grid",
@@ -1498,7 +1617,7 @@ function NotebookView({ notes, onChangeNote, onSaveNow }) {
   );
 }
 
-// --- Checklist / Todo View（修復支援即時編輯文字與雲端同步） ---
+// --- Checklist / Todo View ---
 function ChecklistView({ todos, setTodos, onSaveNow }) {
   const [inputText, setInputText] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -1801,6 +1920,9 @@ export default function App() {
   const [expenseModal, setExpenseModal] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
+  // 拖曳狀態控制
+  const [draggedItemIndex, setDraggedItemIndex] = useState(null);
+
   useEffect(() => {
     const tripRef = doc(db, "trips", "kyoto-trip");
 
@@ -1809,14 +1931,14 @@ export default function App() {
       (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setTripName(data.tripName || "京都三日散策");
+          setTripName(data.tripName || "日本高山中部散策");
           setCoverImage(data.coverImage || SAMPLE_TRIP.coverImage);
           setNotes(data.notes || "");
           setTodos(data.todos || []);
 
           const sortedDays = (data.days || []).map((d) => ({
             ...d,
-            items: sortByTime(d.items || []),
+            items: d.items || [], // 允許保持拖曳後的順序
           }));
 
           setDays(sortedDays);
@@ -2073,6 +2195,32 @@ export default function App() {
     saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
   }
 
+  // 卡片拖曳排序處理（Drag & Drop）
+  const handleDragStart = (index) => {
+    setDraggedItemIndex(index);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedItemIndex === null || draggedItemIndex === index) return;
+
+    const newItems = [...currentDay.items];
+    const draggedItem = newItems[draggedItemIndex];
+    newItems.splice(draggedItemIndex, 1);
+    newItems.splice(index, 0, draggedItem);
+
+    setDraggedItemIndex(index);
+    const updatedDays = days.map((d) =>
+      d.id === currentDay.id ? { ...d, items: newItems } : d
+    );
+    setDays(updatedDays);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemIndex(null);
+    saveNow(tripName, days, expenses, notes, todos, coverImage);
+  };
+
   function saveExpense(expense) {
     let nextExpenses = [];
     setExpenses((prev) => {
@@ -2129,12 +2277,10 @@ export default function App() {
         .card-enter { animation: rise 0.25s ease both; }
         @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* 上方選單欄版面 Layout */
         .app-container { display: flex; flex-direction: column; width: 100%; max-width: 1024px; margin: 0 auto; position: relative; }
         .top-nav { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 8px; border-bottom: 1px solid #ECE4D2; background: #FAF6EF; }
         .main-content { flex: 1; min-width: 0; }
 
-        /* 隱藏 CodeSandbox 右下角 Open Sandbox 水印浮標與選單 */
         #csb-devtools, 
         iframe[src*="codesandbox"],
         div[class*="csb-"], 
@@ -2487,19 +2633,22 @@ export default function App() {
                   )}
 
                   <div style={{ position: "relative" }}>
+                    {/* 左側時間貫穿軸線（穿過 Icon 後方，底色蓋住文字不遮擋） */}
                     {currentDay.items.length > 0 && (
                       <div
                         style={{
                           position: "absolute",
                           left: 21,
-                          top: 22,
+                          top: 14,
                           bottom: 22,
                           width: 2,
                           background:
                             "repeating-linear-gradient(to bottom, #D4A857 0, #D4A857 4px, transparent 4px, transparent 9px)",
+                          zIndex: 0,
                         }}
                       />
                     )}
+
                     {currentDay.items.map((item, idx) => {
                       const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.spot;
                       const IconCmp = cfg.icon;
@@ -2519,30 +2668,77 @@ export default function App() {
                       return (
                         <div
                           key={item.id}
+                          draggable
+                          onDragStart={() => handleDragStart(idx)}
+                          onDragOver={(e) => handleDragOver(e, idx)}
+                          onDragEnd={handleDragEnd}
                           className="card-enter"
                           style={{
                             position: "relative",
                             paddingLeft: 52,
-                            marginBottom: 14,
+                            marginBottom: 16,
+                            opacity: draggedItemIndex === idx ? 0.4 : 1,
+                            transition: "opacity 0.2s",
                           }}
                         >
+                          {/* 左側圖示與時間 (背景色覆蓋軸線，乾淨不重疊) */}
                           <div
                             style={{
                               position: "absolute",
-                              left: 8,
+                              left: 0,
                               top: 6,
-                              width: 28,
-                              height: 28,
-                              borderRadius: "50%",
-                              background: cfg.bg,
-                              border: `2px solid ${cfg.color}`,
+                              width: 44,
                               display: "flex",
+                              flexDirection: "column",
                               alignItems: "center",
-                              justifyContent: "center",
                               zIndex: 1,
                             }}
                           >
-                            <IconCmp size={13} color={cfg.color} />
+                            <div
+                              style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                background: cfg.bg,
+                                border: `2px solid ${cfg.color}`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <IconCmp size={13} color={cfg.color} />
+                            </div>
+
+                            {/* 時間標籤背景設為 #FAF6EF 蓋住時間軸線 */}
+                            {item.time && (
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: "#5C5745",
+                                  marginTop: 4,
+                                  lineHeight: 1.2,
+                                  textAlign: "center",
+                                  whiteSpace: "nowrap",
+                                  background: "#FAF6EF",
+                                  padding: "1px 3px",
+                                  borderRadius: 4,
+                                }}
+                              >
+                                {item.time}
+                                {item.type === "transport" &&
+                                  item.arriveTime && (
+                                    <div
+                                      style={{
+                                        fontSize: 9.5,
+                                        color: "#8A8168",
+                                      }}
+                                    >
+                                      ↓ {item.arriveTime}
+                                    </div>
+                                  )}
+                              </div>
+                            )}
                           </div>
 
                           {prevPlace && (
@@ -2576,6 +2772,7 @@ export default function App() {
                               borderRadius: 12,
                               padding: "14px",
                               boxShadow: "0 1px 2px rgba(43,40,34,0.04)",
+                              position: "relative",
                             }}
                           >
                             <div
@@ -2708,39 +2905,54 @@ export default function App() {
                                 style={{
                                   display: "flex",
                                   flexDirection: "column",
+                                  alignItems: "flex-end",
                                   gap: 6,
                                   flexShrink: 0,
                                 }}
                               >
-                                <button
-                                  onClick={() =>
-                                    setModal({ dayId: currentDay.id, item })
-                                  }
+                                {/* 拖曳抓握手把 */}
+                                <div
                                   style={{
-                                    border: "1px solid #E4DCC8",
-                                    background: "#fff",
-                                    color: "#5C5745",
-                                    borderRadius: 8,
-                                    padding: "6px 10px",
-                                    fontSize: 12,
+                                    cursor: "grab",
+                                    color: "#C9BFA8",
+                                    padding: "2px",
                                   }}
+                                  title="長按拖曳調整順序"
                                 >
-                                  編輯
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    removeItem(currentDay.id, item.id)
-                                  }
-                                  style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    color: "#C1633D",
-                                    fontSize: 12,
-                                    padding: "6px 4px",
-                                  }}
-                                >
-                                  刪除
-                                </button>
+                                  <GripVertical size={18} />
+                                </div>
+
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button
+                                    onClick={() =>
+                                      setModal({ dayId: currentDay.id, item })
+                                    }
+                                    style={{
+                                      border: "1px solid #E4DCC8",
+                                      background: "#fff",
+                                      color: "#5C5745",
+                                      borderRadius: 8,
+                                      padding: "5px 9px",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    編輯
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      removeItem(currentDay.id, item.id)
+                                    }
+                                    style={{
+                                      border: "none",
+                                      background: "transparent",
+                                      color: "#C1633D",
+                                      fontSize: 12,
+                                      padding: "5px 2px",
+                                    }}
+                                  >
+                                    刪除
+                                  </button>
+                                </div>
                               </div>
                             </div>
 
