@@ -27,6 +27,10 @@ import {
   RefreshCw,
   Check,
   GripVertical,
+  AlertCircle,
+  Briefcase,
+  Utensils,
+  Gift,
 } from "lucide-react";
 
 // --- 1. Firebase 初始化 ---
@@ -133,6 +137,14 @@ const EXPENSE_CATEGORIES = {
   other: { label: "其他", color: "#7A7360", bg: "#EFEAE0" },
 };
 
+const TODO_CATEGORIES = {
+  important: { label: "重要", icon: AlertCircle, color: "#C1633D", bg: "#FBEAE1" },
+  luggage: { label: "行李類", icon: Briefcase, color: "#3D6E8C", bg: "#E4EEF4" },
+  toBuy: { label: "要買", icon: ShoppingBag, color: "#8A4F9E", bg: "#F1E7F5" },
+  toEat: { label: "要吃", icon: Utensils, color: "#B8862F", bg: "#FBF0DC" },
+  souvenir: { label: "伴手禮", icon: Gift, color: "#2F4538", bg: "#EAF0EA" },
+};
+
 const PAYMENT_METHODS = {
   card: { label: "刷卡" },
   cash: { label: "付現" },
@@ -147,9 +159,13 @@ const SAMPLE_TRIP = {
   notes:
     "1. 護照複影本放隨身包包\n2. 關西機場記得領取 HARUKA 車票\n3. 網卡開通設定說明：設定 -> 行動網路 -> 啟動數據漫遊",
   todos: [
-    { id: uid(), text: "護照及簽證確認", completed: true },
-    { id: uid(), text: "預訂日本 eSIM / 漫遊服務", completed: false },
-    { id: uid(), text: "準備換日幣現金", completed: false },
+    { id: uid(), text: "護照及簽證確認", category: "important", completed: true },
+    { id: uid(), text: "預訂日本 eSIM / 漫遊服務", category: "important", completed: false },
+    { id: uid(), text: "換日幣現金", category: "important", completed: false },
+    { id: uid(), text: "個人洗沐保養品", category: "luggage", completed: false },
+    { id: uid(), text: "藥妝合利他命", category: "toBuy", completed: false },
+    { id: uid(), text: "飛驒牛鰻魚飯", category: "toEat", completed: false },
+    { id: uid(), text: "坂角總本舖蝦餅", category: "souvenir", completed: false },
   ],
   days: [
     {
@@ -217,7 +233,7 @@ function Field({ label, children }) {
   );
 }
 
-// --- Countdown Component (倒數 2026/08/15 06:52) ---
+// --- Countdown Component ---
 function CountdownTimer() {
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
@@ -235,13 +251,7 @@ function CountdownTimer() {
       const difference = targetDate - now;
 
       if (difference <= 0) {
-        setTimeLeft({
-          days: 0,
-          hours: 0,
-          minutes: 0,
-          seconds: 0,
-          isFinished: true,
-        });
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isFinished: true });
         return;
       }
 
@@ -285,16 +295,11 @@ function CountdownTimer() {
       </div>
 
       {timeLeft.isFinished ? (
-        <div
-          className="serif"
-          style={{ fontSize: 20, fontWeight: 700, color: "#90deb0" }}
-        >
+        <div className="serif" style={{ fontSize: 20, fontWeight: 700, color: "#90deb0" }}>
           🎉 旅程已經展開，祝您旅途愉快！
         </div>
       ) : (
-        <div
-          style={{ display: "flex", gap: 8, justifyContent: "space-between" }}
-        >
+        <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
           {[
             { label: "天", val: timeLeft.days },
             { label: "時", val: timeLeft.hours },
@@ -1614,17 +1619,25 @@ function NotebookView({ notes, onChangeNote, onSaveNow }) {
   );
 }
 
-// --- Checklist / Todo View ---
+// --- Checklist / Todo View（支援 5 大分類專屬區塊展示） ---
 function ChecklistView({ todos, setTodos, onSaveNow }) {
   const [inputText, setInputText] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("important");
+  const [filterCategory, setFilterCategory] = useState("all");
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState("");
+  const [editingCategory, setEditingCategory] = useState("important");
 
   const addTodo = () => {
     if (!inputText.trim()) return;
     const newTodos = [
       ...todos,
-      { id: uid(), text: inputText.trim(), completed: false },
+      {
+        id: uid(),
+        text: inputText.trim(),
+        category: selectedCategory,
+        completed: false,
+      },
     ];
     setTodos(newTodos);
     setInputText("");
@@ -1649,12 +1662,15 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
     e.stopPropagation();
     setEditingId(todo.id);
     setEditingText(todo.text);
+    setEditingCategory(todo.category || "important");
   };
 
   const saveEdit = (id) => {
     if (!editingText.trim()) return;
     const newTodos = todos.map((t) =>
-      t.id === id ? { ...t, text: editingText.trim() } : t
+      t.id === id
+        ? { ...t, text: editingText.trim(), category: editingCategory }
+        : t
     );
     setTodos(newTodos);
     setEditingId(null);
@@ -1666,6 +1682,12 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
     setEditingId(null);
     setEditingText("");
   };
+
+  // 分類過濾邏輯
+  const categoriesToDisplay =
+    filterCategory === "all"
+      ? Object.keys(TODO_CATEGORIES)
+      : [filterCategory];
 
   return (
     <main
@@ -1703,196 +1725,346 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
           </h3>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <input
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addTodo()}
-            placeholder="新增待辦項目（如：換日幣...）"
-            style={inputStyle}
-          />
+        {/* 分類過濾頁籤 */}
+        <div
+          className="scrollbar-thin"
+          style={{
+            display: "flex",
+            gap: 6,
+            overflowX: "auto",
+            marginBottom: 16,
+            paddingBottom: 4,
+          }}
+        >
           <button
-            onClick={addTodo}
+            onClick={() => setFilterCategory("all")}
             style={{
-              flexShrink: 0,
-              padding: "0 18px",
-              borderRadius: 10,
-              border: "none",
-              background: "#2F4538",
-              color: "#fff",
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: filterCategory === "all" ? "1.5px solid #2F4538" : "1px solid #E4DCC8",
+              background: filterCategory === "all" ? "#2F4538" : "#FAF6EF",
+              color: filterCategory === "all" ? "#fff" : "#5C5745",
+              fontSize: 12.5,
               fontWeight: 600,
-              fontSize: 14,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
+              whiteSpace: "nowrap",
             }}
           >
-            <Plus size={16} /> 新增
+            全部
           </button>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {todos.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "30px 0",
-                color: "#A69C82",
-                fontSize: 13,
-              }}
-            >
-              清單目前是空的，快新增一些事項吧！
-            </div>
-          )}
-
-          {todos.map((todo) => {
-            const isEditing = editingId === todo.id;
-
+          {Object.entries(TODO_CATEGORIES).map(([key, cfg]) => {
+            const active = filterCategory === key;
+            const Icon = cfg.icon;
             return (
-              <div
-                key={todo.id}
-                onClick={() => !isEditing && toggleTodo(todo.id)}
+              <button
+                key={key}
+                onClick={() => setFilterCategory(key)}
                 style={{
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  border: active ? `1.5px solid ${cfg.color}` : "1px solid #E4DCC8",
+                  background: active ? cfg.bg : "#FAF6EF",
+                  color: active ? cfg.color : "#5C5745",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  background: todo.completed ? "#F7F5F0" : "#FAF6EF",
-                  border: "1px solid #ECE4D2",
-                  cursor: isEditing ? "default" : "pointer",
-                  transition: "all 0.15s",
+                  gap: 4,
                 }}
               >
+                <Icon size={13} /> {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 新增待辦區塊 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addTodo()}
+              placeholder="新增待辦項目（如：換日幣...）"
+              style={{ ...inputStyle, flex: 1 }}
+            />
+            <button
+              onClick={addTodo}
+              style={{
+                flexShrink: 0,
+                padding: "0 18px",
+                borderRadius: 10,
+                border: "none",
+                background: "#2F4538",
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <Plus size={16} /> 新增
+            </button>
+          </div>
+
+          {/* 新增時的分類選擇 */}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: "#8A8168", alignSelf: "center", marginRight: 4 }}>
+              類別:
+            </span>
+            {Object.entries(TODO_CATEGORIES).map(([key, cfg]) => {
+              const active = selectedCategory === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setSelectedCategory(key)}
+                  style={{
+                    padding: "4px 9px",
+                    borderRadius: 6,
+                    border: active ? `1.5px solid ${cfg.color}` : "1px solid #E4DCC8",
+                    background: active ? cfg.bg : "#fff",
+                    color: active ? cfg.color : "#8A8168",
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                >
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 分分類展示待辦區塊 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {categoriesToDisplay.map((catKey) => {
+            const catConfig = TODO_CATEGORIES[catKey];
+            const CatIcon = catConfig.icon;
+            const categoryTodos = todos.filter(
+              (t) => (t.category || "important") === catKey
+            );
+
+            if (filterCategory === "all" && categoryTodos.length === 0) {
+              return null;
+            }
+
+            return (
+              <div key={catKey}>
+                {/* 分類標題 */}
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
-                    flex: 1,
-                    minWidth: 0,
+                    gap: 6,
+                    marginBottom: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: catConfig.color,
                   }}
                 >
-                  {todo.completed ? (
-                    <CheckSquare
-                      size={20}
-                      color="#2F4538"
-                      style={{ flexShrink: 0 }}
-                    />
-                  ) : (
-                    <Square
-                      size={20}
-                      color="#8A8168"
-                      style={{ flexShrink: 0 }}
-                    />
-                  )}
-
-                  {isEditing ? (
-                    <input
-                      autoFocus
-                      value={editingText}
-                      onChange={(e) => setEditingText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveEdit(todo.id);
-                        if (e.key === "Escape") cancelEdit();
-                      }}
-                      style={{
-                        ...inputStyle,
-                        padding: "4px 8px",
-                        fontSize: 14,
-                        flex: 1,
-                      }}
-                    />
-                  ) : (
-                    <span
-                      style={{
-                        fontSize: 15,
-                        color: todo.completed ? "#A69C82" : "#2B2822",
-                        textDecoration: todo.completed
-                          ? "line-through"
-                          : "none",
-                        wordBreak: "break-all",
-                      }}
-                    >
-                      {todo.text}
-                    </span>
-                  )}
+                  <CatIcon size={15} />
+                  <span>{catConfig.label}</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      background: catConfig.bg,
+                      padding: "1px 6px",
+                      borderRadius: 10,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {categoryTodos.length}
+                  </span>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    marginLeft: 8,
-                  }}
-                >
-                  {isEditing ? (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          saveEdit(todo.id);
-                        }}
-                        style={{
-                          border: "none",
-                          background: "#2F4538",
-                          color: "#fff",
-                          borderRadius: 6,
-                          padding: "4px 8px",
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Check size={16} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          cancelEdit();
-                        }}
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          color: "#8A8168",
-                          padding: 4,
-                        }}
-                      >
-                        <X size={16} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={(e) => startEdit(e, todo)}
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          color: "#5C5745",
-                          padding: 6,
-                        }}
-                        title="編輯項目"
-                      >
-                        <Edit3 size={16} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteTodo(todo.id);
-                        }}
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          color: "#C1633D",
-                          padding: 6,
-                        }}
-                        title="刪除項目"
-                      >
-                        <X size={18} />
-                      </button>
-                    </>
-                  )}
-                </div>
+                {categoryTodos.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "14px",
+                      color: "#A69C82",
+                      fontSize: 12.5,
+                      background: "#FAF6EF",
+                      borderRadius: 8,
+                      textAlign: "center",
+                    }}
+                  >
+                    這個分類目前沒有項目
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {categoryTodos.map((todo) => {
+                      const isEditing = editingId === todo.id;
+
+                      return (
+                        <div
+                          key={todo.id}
+                          onClick={() => !isEditing && toggleTodo(todo.id)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "10px 12px",
+                            borderRadius: 10,
+                            background: todo.completed ? "#F7F5F0" : "#FAF6EF",
+                            border: "1px solid #ECE4D2",
+                            cursor: isEditing ? "default" : "pointer",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              flex: 1,
+                              minWidth: 0,
+                            }}
+                          >
+                            {todo.completed ? (
+                              <CheckSquare
+                                size={20}
+                                color="#2F4538"
+                                style={{ flexShrink: 0 }}
+                              />
+                            ) : (
+                              <Square
+                                size={20}
+                                color="#8A8168"
+                                style={{ flexShrink: 0 }}
+                              />
+                            )}
+
+                            {isEditing ? (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                                <input
+                                  autoFocus
+                                  value={editingText}
+                                  onChange={(e) => setEditingText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveEdit(todo.id);
+                                    if (e.key === "Escape") cancelEdit();
+                                  }}
+                                  style={{
+                                    ...inputStyle,
+                                    padding: "4px 8px",
+                                    fontSize: 14,
+                                  }}
+                                />
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  {Object.entries(TODO_CATEGORIES).map(([k, c]) => (
+                                    <button
+                                      key={k}
+                                      onClick={() => setEditingCategory(k)}
+                                      style={{
+                                        padding: "2px 6px",
+                                        fontSize: 11,
+                                        borderRadius: 4,
+                                        border: editingCategory === k ? `1px solid ${c.color}` : "1px solid #E4DCC8",
+                                        background: editingCategory === k ? c.bg : "#fff",
+                                        color: editingCategory === k ? c.color : "#8A8168",
+                                      }}
+                                    >
+                                      {c.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: 15,
+                                  color: todo.completed ? "#A69C82" : "#2B2822",
+                                  textDecoration: todo.completed
+                                    ? "line-through"
+                                    : "none",
+                                  wordBreak: "break-all",
+                                }}
+                              >
+                                {todo.text}
+                              </span>
+                            )}
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                              marginLeft: 8,
+                            }}
+                          >
+                            {isEditing ? (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    saveEdit(todo.id);
+                                  }}
+                                  style={{
+                                    border: "none",
+                                    background: "#2F4538",
+                                    color: "#fff",
+                                    borderRadius: 6,
+                                    padding: "4px 8px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  <Check size={16} />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    cancelEdit();
+                                  }}
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: "#8A8168",
+                                    padding: 4,
+                                  }}
+                                >
+                                  <X size={16} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={(e) => startEdit(e, todo)}
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: "#5C5745",
+                                    padding: 6,
+                                  }}
+                                  title="編輯項目"
+                                >
+                                  <Edit3 size={16} />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteTodo(todo.id);
+                                  }}
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: "#C1633D",
+                                    padding: 6,
+                                  }}
+                                  title="刪除項目"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1917,7 +2089,6 @@ export default function App() {
   const [expenseModal, setExpenseModal] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
-  // 電腦 + 手機通用拖曳狀態
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
   const containerRef = useRef(null);
 
@@ -2411,7 +2582,7 @@ export default function App() {
 
       {/* Main Container */}
       <div className="app-container">
-        {/* Top Navigation Bar 頂部選單欄 */}
+        {/* Top Navigation Bar */}
         <nav className="top-nav scrollbar-thin">
           <button
             onClick={() => setView("home")}
@@ -2722,7 +2893,7 @@ export default function App() {
                             transition: "opacity 0.2s",
                           }}
                         >
-                          {/* 左側圖示與時間 (遮罩底色不擋線) */}
+                          {/* 左側圖示與時間 */}
                           <div
                             style={{
                               position: "absolute",
@@ -2766,17 +2937,11 @@ export default function App() {
                                 }}
                               >
                                 {item.time}
-                                {item.type === "transport" &&
-                                  item.arriveTime && (
-                                    <div
-                                      style={{
-                                        fontSize: 9.5,
-                                        color: "#8A8168",
-                                      }}
-                                    >
-                                      ↓ {item.arriveTime}
-                                    </div>
-                                  )}
+                                {item.type === "transport" && item.arriveTime && (
+                                  <div style={{ fontSize: 9.5, color: "#8A8168" }}>
+                                    ↓ {item.arriveTime}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -2950,7 +3115,6 @@ export default function App() {
                                   flexShrink: 0,
                                 }}
                               >
-                                {/* 手機 + 電腦通用拖曳手把 */}
                                 <div
                                   onTouchStart={() => handleTouchStart(idx)}
                                   style={{
@@ -2998,6 +3162,7 @@ export default function App() {
                               </div>
                             </div>
 
+                            {/* 修復穩定排版：起點與終點專屬樣式區塊 */}
                             {item.type === "transport" ? (
                               <div
                                 style={{
@@ -3022,16 +3187,16 @@ export default function App() {
                                       target="_blank"
                                       rel="noreferrer"
                                       style={{
-                                        flex: "1 1 140px",
-                                        minWidth: 0,
-                                        display: "flex",
+                                        flex: "1 1 calc(50% - 4px)",
+                                        minWidth: "130px",
+                                        display: "inline-flex",
                                         alignItems: "center",
                                         justifyContent: "space-between",
                                         textDecoration: "none",
                                         background: "#FAF6EF",
                                         border: "1px dashed #D9CFBB",
                                         borderRadius: 8,
-                                        padding: "7px 10px",
+                                        padding: "8px 10px",
                                         boxSizing: "border-box",
                                       }}
                                     >
@@ -3041,13 +3206,14 @@ export default function App() {
                                           color: "#5C5745",
                                           display: "flex",
                                           alignItems: "center",
-                                          gap: 4,
+                                          gap: 5,
                                           overflow: "hidden",
                                           textOverflow: "ellipsis",
                                           whiteSpace: "nowrap",
+                                          fontWeight: 500,
                                         }}
                                       >
-                                        <MapPin size={13} color="#3D6E8C" />{" "}
+                                        <MapPin size={14} color="#3D6E8C" style={{ flexShrink: 0 }} />
                                         起點：{item.origin}
                                       </span>
                                       <ExternalLink
@@ -3063,16 +3229,16 @@ export default function App() {
                                       target="_blank"
                                       rel="noreferrer"
                                       style={{
-                                        flex: "1 1 140px",
-                                        minWidth: 0,
-                                        display: "flex",
+                                        flex: "1 1 calc(50% - 4px)",
+                                        minWidth: "130px",
+                                        display: "inline-flex",
                                         alignItems: "center",
                                         justifyContent: "space-between",
                                         textDecoration: "none",
                                         background: "#FAF6EF",
                                         border: "1px dashed #D9CFBB",
                                         borderRadius: 8,
-                                        padding: "7px 10px",
+                                        padding: "8px 10px",
                                         boxSizing: "border-box",
                                       }}
                                     >
@@ -3082,13 +3248,14 @@ export default function App() {
                                           color: "#5C5745",
                                           display: "flex",
                                           alignItems: "center",
-                                          gap: 4,
+                                          gap: 5,
                                           overflow: "hidden",
                                           textOverflow: "ellipsis",
                                           whiteSpace: "nowrap",
+                                          fontWeight: 500,
                                         }}
                                       >
-                                        <MapPin size={13} color="#C1633D" />{" "}
+                                        <MapPin size={14} color="#C1633D" style={{ flexShrink: 0 }} />
                                         終點：{item.destination}
                                       </span>
                                       <ExternalLink
@@ -3109,7 +3276,7 @@ export default function App() {
                                     target="_blank"
                                     rel="noreferrer"
                                     style={{
-                                      display: "flex",
+                                      display: "inline-flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                       gap: 6,
@@ -3124,9 +3291,8 @@ export default function App() {
                                       boxSizing: "border-box",
                                     }}
                                   >
-                                    <Navigation size={14} color="#1B382B" />{" "}
-                                    開啟 Google Maps 路線導航（{item.origin} ➔{" "}
-                                    {item.destination}）
+                                    <Navigation size={14} color="#1B382B" style={{ flexShrink: 0 }} />
+                                    開啟 Google Maps 路線導航（{item.origin} ➔ {item.destination}）
                                   </a>
                                 )}
                               </div>
@@ -3159,7 +3325,7 @@ export default function App() {
                                     whiteSpace: "nowrap",
                                   }}
                                 >
-                                  <MapPin size={13} color="#8A8168" />{" "}
+                                  <MapPin size={13} color="#8A8168" style={{ flexShrink: 0 }} />
                                   {item.place}
                                 </span>
                                 <span
