@@ -1431,6 +1431,10 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
   const [editingCategory, setEditingCategory] = useState("important");
   const [editingOwner, setEditingOwner] = useState("moomin");
 
+  // FIX: build the object without ever assigning `owner: undefined`.
+  // Firestore's setDoc() throws when any field is literally `undefined`,
+  // which was silently failing (caught in console only) for every
+  // category except "luggage" (the only one that always had a real owner value).
   const addTodo = () => {
     if (!inputText.trim()) return;
     const newTodo = {
@@ -1438,8 +1442,8 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
       text: inputText.trim(),
       note: inputNote.trim(),
       category: selectedCategory,
-      owner: selectedCategory === "luggage" ? selectedOwner : undefined,
       completed: false,
+      ...(selectedCategory === "luggage" ? { owner: selectedOwner } : {}),
     };
     const updated = [...todos, newTodo];
     setTodos(updated);
@@ -1471,19 +1475,25 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
     setEditingOwner(todo.owner || "moomin");
   };
 
+  // FIX: same undefined-field problem as addTodo. For non-luggage items we now
+  // delete the `owner` key entirely instead of setting it to undefined.
   const saveEdit = (id) => {
     if (!editingText.trim()) return;
-    const updated = todos.map((t) =>
-      t.id === id
-        ? {
-            ...t,
-            text: editingText.trim(),
-            note: editingNote.trim(),
-            category: editingCategory,
-            owner: editingCategory === "luggage" ? editingOwner : undefined,
-          }
-        : t
-    );
+    const updated = todos.map((t) => {
+      if (t.id !== id) return t;
+      const next = {
+        ...t,
+        text: editingText.trim(),
+        note: editingNote.trim(),
+        category: editingCategory,
+      };
+      if (editingCategory === "luggage") {
+        next.owner = editingOwner;
+      } else {
+        delete next.owner;
+      }
+      return next;
+    });
     setTodos(updated);
     setEditingId(null);
     setEditingText("");
@@ -2093,6 +2103,7 @@ export default function App() {
   const [expenseModal, setExpenseModal] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [confirmDeleteDayId, setConfirmDeleteDayId] = useState(null);
+  const [syncError, setSyncError] = useState("");
 
   useEffect(() => {
     const tripRef = doc(db, "trips", "kyoto-trip");
@@ -2139,6 +2150,8 @@ export default function App() {
   }, []);
 
   // 智慧合併同步：以「最新生成的項目陣列」與雲端現有項目做智慧聯集 (Smart Merge)
+  // FIX: surface sync failures to the UI instead of only logging to console,
+  // so a bad write (e.g. undefined fields, offline, etc.) is visible immediately.
   const syncToFirebaseWithMerge = async (newTodos) => {
     try {
       const tripRef = doc(db, "trips", "kyoto-trip");
@@ -2148,9 +2161,11 @@ export default function App() {
 
       // 傳送合併更新到 Firebase
       await setDoc(tripRef, { todos: newTodos }, { merge: true });
+      setSyncError("");
       console.log("⚡️ 清單智能同步成功！");
     } catch (err) {
       console.error("清單同步失敗:", err);
+      setSyncError("清單儲存失敗，請檢查網路連線後重試");
     }
   };
 
@@ -2158,8 +2173,10 @@ export default function App() {
     try {
       const tripRef = doc(db, "trips", "kyoto-trip");
       await setDoc(tripRef, patch, { merge: true });
+      setSyncError("");
     } catch (err) {
       console.error("同步失敗:", err);
+      setSyncError("儲存失敗，請檢查網路連線後重試");
     }
   };
 
@@ -2410,6 +2427,21 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {syncError && (
+        <div
+          style={{
+            background: "#FBEAE1",
+            color: "#C1633D",
+            fontSize: 13,
+            fontWeight: 600,
+            padding: "8px 20px",
+            textAlign: "center",
+          }}
+        >
+          ⚠ {syncError}
+        </div>
+      )}
 
       {/* Main Container */}
       <div className="app-container">
