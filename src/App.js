@@ -32,6 +32,8 @@ import {
   Gift,
   User,
   Flag,
+  Image as ImageIcon,
+  Users,
 } from "lucide-react";
 
 // --- 1. Firebase 初始化 ---
@@ -186,13 +188,6 @@ const SAMPLE_TRIP = {
     },
     {
       id: uid(),
-      text: "換日幣現金",
-      category: "important",
-      note: "預計換 10 萬日圓",
-      completed: false,
-    },
-    {
-      id: uid(),
       text: "保養品與保濕面膜",
       category: "luggage",
       owner: "moomin",
@@ -209,9 +204,10 @@ const SAMPLE_TRIP = {
     },
     {
       id: uid(),
-      text: "藥妝合利他命強效錠",
-      category: "toBuy",
-      note: "松本清或大國藥妝購入",
+      text: "雙人用日本轉接頭/延長線",
+      category: "luggage",
+      owner: "both",
+      note: "兩個人共用包包",
       completed: false,
     },
     {
@@ -221,19 +217,13 @@ const SAMPLE_TRIP = {
       note: "味藏天國/廣川鰻魚飯",
       completed: false,
     },
-    {
-      id: uid(),
-      text: "坂角總本舖蝦餅",
-      category: "souvenir",
-      note: "機場或名古屋車站購買",
-      completed: false,
-    },
   ],
   days: [
     {
       id: uid(),
       date: "2026-08-15",
       startPoint: "桃園國際機場第一航廈",
+      startPointNote: "預計 04:30 辦理報到手續",
       items: [
         {
           id: uid(),
@@ -308,11 +298,9 @@ function CountdownTimer() {
 
   useEffect(() => {
     const targetDate = new Date("2026-08-15T06:52:00").getTime();
-
     const calculateTime = () => {
       const now = new Date().getTime();
       const difference = targetDate - now;
-
       if (difference <= 0) {
         setTimeLeft({
           days: 0,
@@ -323,15 +311,14 @@ function CountdownTimer() {
         });
         return;
       }
-
-      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-      const minutes = Math.floor((difference / 1000 / 60) % 60);
-      const seconds = Math.floor((difference / 1000) % 60);
-
-      setTimeLeft({ days, hours, minutes, seconds, isFinished: false });
+      setTimeLeft({
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+        isFinished: false,
+      });
     };
-
     calculateTime();
     const timer = setInterval(calculateTime, 1000);
     return () => clearInterval(timer);
@@ -355,14 +342,10 @@ function CountdownTimer() {
           opacity: 0.8,
           marginBottom: 10,
           fontWeight: 600,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
         }}
       >
-        <span>✈ 出發倒數 (2026/08/15 06:52)</span>
+        ✈ 出發倒數 (2026/08/15 06:52)
       </div>
-
       {timeLeft.isFinished ? (
         <div
           className="serif"
@@ -418,7 +401,6 @@ function HomeView({
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [photoInput, setPhotoInput] = useState(coverImage || "");
   const [selectedCity, setSelectedCity] = useState("nagoya");
-
   const [weatherData, setWeatherData] = useState({
     temp: "--",
     cond: "載入中…",
@@ -431,56 +413,75 @@ function HomeView({
     let isMounted = true;
     const city = CITY_COORDS[selectedCity] || CITY_COORDS.nagoya;
     setWeatherData((prev) => ({ ...prev, loading: true }));
-
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m,weather_code`;
-
-    fetch(url)
+    fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m,weather_code`
+    )
       .then((res) => res.json())
       .then((data) => {
         if (!isMounted) return;
         if (data && data.current) {
-          const temp = `${Math.round(data.current.temperature_2m)}°C`;
-          const humidity = `${data.current.relative_humidity_2m}%`;
-          const parsed = parseWmoCode(data.current.weather_code);
-
           setWeatherData({
-            temp,
-            humidity,
-            cond: parsed.cond,
-            icon: parsed.icon,
+            temp: `${Math.round(data.current.temperature_2m)}°C`,
+            humidity: `${data.current.relative_humidity_2m}%`,
+            cond: parseWmoCode(data.current.weather_code).cond,
+            icon: parseWmoCode(data.current.weather_code).icon,
             loading: false,
           });
         }
       })
-      .catch((err) => {
-        console.error("氣象 API 連線失敗:", err);
-        if (isMounted) {
+      .catch(
+        () =>
+          isMounted &&
           setWeatherData({
             temp: "--",
             cond: "取得失敗",
             humidity: "--",
             icon: Sun,
             loading: false,
-          });
-        }
-      });
-
+          })
+      );
     return () => {
       isMounted = false;
     };
   }, [selectedCity]);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 1000;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+        onUpdateCoverImage(compressedBase64);
+        setEditingPhoto(false);
+      };
+    };
+    reader.readAsDataURL(file);
+  };
 
   const startDate = days[0]?.date ? fmtDateLabel(days[0].date) : "";
   const endDate = days[days.length - 1]?.date
     ? fmtDateLabel(days[days.length - 1].date)
     : "";
   const WeatherIcon = weatherData.icon;
-  const currentCityName = CITY_COORDS[selectedCity]?.name || "名古屋";
-
-  const handleSavePhoto = () => {
-    onUpdateCoverImage(photoInput);
-    setEditingPhoto(false);
-  };
 
   return (
     <main
@@ -516,7 +517,6 @@ function HomeView({
               "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%)",
           }}
         />
-
         <div
           style={{
             position: "absolute",
@@ -538,12 +538,7 @@ function HomeView({
           </div>
           <h2
             className="serif"
-            style={{
-              margin: 0,
-              fontSize: 24,
-              fontWeight: 700,
-              textShadow: "0 2px 4px rgba(0,0,0,0.3)",
-            }}
+            style={{ margin: 0, fontSize: 24, fontWeight: 700 }}
           >
             {tripName}
           </h2>
@@ -564,7 +559,6 @@ function HomeView({
             </div>
           )}
         </div>
-
         <button
           onClick={() => setEditingPhoto(true)}
           style={{
@@ -603,10 +597,40 @@ function HomeView({
               fontSize: 13,
               fontWeight: 700,
               color: "#2B2822",
-              marginBottom: 8,
+              marginBottom: 12,
             }}
           >
-            輸入新相片網址 (Image URL)：
+            選擇更換相片方式：
+          </div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+            <label
+              style={{
+                flex: 1,
+                padding: "10px",
+                borderRadius: 10,
+                background: "#EAF0EA",
+                border: "1.5px solid #2F4538",
+                color: "#2F4538",
+                fontSize: 13,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                cursor: "pointer",
+              }}
+            >
+              <ImageIcon size={16} /> 從手機相簿選擇
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileUpload}
+                style={{ display: "none" }}
+              />
+            </label>
+          </div>
+          <div style={{ fontSize: 12, color: "#8A8168", marginBottom: 6 }}>
+            或輸入圖片網址 (Image URL)：
           </div>
           <input
             value={photoInput}
@@ -628,7 +652,10 @@ function HomeView({
               取消
             </button>
             <button
-              onClick={handleSavePhoto}
+              onClick={() => {
+                onUpdateCoverImage(photoInput);
+                setEditingPhoto(false);
+              }}
               style={{
                 border: "none",
                 background: "#2F4538",
@@ -639,7 +666,7 @@ function HomeView({
                 fontWeight: 600,
               }}
             >
-              儲存相片
+              儲存網址相片
             </button>
           </div>
         </div>
@@ -695,12 +722,11 @@ function HomeView({
                 outline: "none",
               }}
             >
-              <option value="taoyuan">桃園</option>
-              <option value="osaka">大阪</option>
-              <option value="nagoya">名古屋</option>
-              <option value="takayama">高山</option>
-              <option value="hida">飛騨</option>
-              <option value="kamikochi">上高地</option>
+              {Object.entries(CITY_COORDS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.name}
+                </option>
+              ))}
             </select>
           </div>
           <div
@@ -725,7 +751,7 @@ function HomeView({
               </div>
             </div>
             <div style={{ textAlign: "right", fontSize: 12, color: "#8A8168" }}>
-              <div>{currentCityName}</div>
+              <div>{CITY_COORDS[selectedCity]?.name}</div>
               <div style={{ color: "#2F4538", fontWeight: 600 }}>
                 即時連線 🌐
               </div>
@@ -842,43 +868,10 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
   }
 
   const type = liveItem?.type || "spot";
-  const time = liveItem?.time || "";
-  const arriveTime = liveItem?.arriveTime || "";
-  const title = liveItem?.title || "";
-  const place = liveItem?.place || "";
-  const origin = liveItem?.origin || "";
-  const destination = liveItem?.destination || "";
-  const note = liveItem?.note || "";
-  const stops = liveItem?.stops || [];
-
-  function addStop() {
-    ensureCreatedThenSet("stops", [
-      ...stops,
-      { id: uid(), place: "", closeTime: "" },
-    ]);
-  }
-
-  function updateStop(stopId, field, value) {
-    ensureCreatedThenSet(
-      "stops",
-      stops.map((s) => (s.id === stopId ? { ...s, [field]: value } : s))
-    );
-  }
-
-  function removeStop(stopId) {
-    ensureCreatedThenSet(
-      "stops",
-      stops.filter((s) => s.id !== stopId)
-    );
-  }
-
-  function handleDone() {
-    onClose(!initial && liveItem ? liveItem.id : null);
-  }
 
   return (
     <div
-      onClick={handleDone}
+      onClick={() => onClose(liveItem?.id)}
       style={{
         position: "fixed",
         inset: 0,
@@ -911,7 +904,6 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
             margin: "0 auto 12px",
           }}
         />
-
         <div
           style={{
             display: "flex",
@@ -927,7 +919,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
             {initial ? "編輯項目" : "新增行程項目"}
           </div>
           <button
-            onClick={handleDone}
+            onClick={() => onClose(liveItem?.id)}
             style={{
               border: "none",
               background: "transparent",
@@ -983,18 +975,17 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
           <Field label="時間">
             <input
               type="time"
-              value={time}
+              value={liveItem?.time || ""}
               onChange={(e) => ensureCreatedThenSet("time", e.target.value)}
               style={inputStyle}
             />
           </Field>
         )}
-
         {type === "transport" && (
           <Field label="預計抵達時間">
             <input
               type="time"
-              value={arriveTime}
+              value={liveItem?.arriveTime || ""}
               onChange={(e) =>
                 ensureCreatedThenSet("arriveTime", e.target.value)
               }
@@ -1010,7 +1001,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
                 ? "例如：嵐山悠然町家"
                 : "例如：清水寺 或 搭乘 HARUKA 特急"
             }
-            value={title}
+            value={liveItem?.title || ""}
             onChange={(e) => ensureCreatedThenSet("title", e.target.value)}
             style={inputStyle}
           />
@@ -1021,7 +1012,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
             <Field label="起點">
               <input
                 placeholder="例如：關西機場"
-                value={origin}
+                value={liveItem?.origin || ""}
                 onChange={(e) => ensureCreatedThenSet("origin", e.target.value)}
                 style={inputStyle}
               />
@@ -1029,7 +1020,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
             <Field label="終點">
               <input
                 placeholder="例如：京都車站"
-                value={destination}
+                value={liveItem?.destination || ""}
                 onChange={(e) =>
                   ensureCreatedThenSet("destination", e.target.value)
                 }
@@ -1041,107 +1032,17 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
           <Field label="地點（用於 Google Maps 搜尋）">
             <input
               placeholder="例如：清水寺 京都"
-              value={place}
+              value={liveItem?.place || ""}
               onChange={(e) => ensureCreatedThenSet("place", e.target.value)}
               style={inputStyle}
             />
           </Field>
         )}
 
-        {type === "shopping" && (
-          <Field label="購物地點清單">
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {stops.map((s, i) => (
-                <div
-                  key={s.id}
-                  style={{
-                    border: "1px solid #ECE4D2",
-                    borderRadius: 10,
-                    padding: 10,
-                    background: "#fff",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: "#8A8168",
-                      }}
-                    >
-                      地點 {i + 1}
-                    </span>
-                    <button
-                      onClick={() => removeStop(s.id)}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        color: "#C1633D",
-                        fontSize: 12,
-                        padding: "2px 6px",
-                      }}
-                    >
-                      刪除
-                    </button>
-                  </div>
-                  <input
-                    placeholder="例如：新京極商店街"
-                    value={s.place}
-                    onChange={(e) => updateStop(s.id, "place", e.target.value)}
-                    style={{ ...inputStyle, marginBottom: 6 }}
-                  />
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <span
-                      style={{ fontSize: 12, color: "#8A8168", flexShrink: 0 }}
-                    >
-                      關門時間
-                    </span>
-                    <input
-                      type="time"
-                      value={s.closeTime}
-                      onChange={(e) =>
-                        updateStop(s.id, "closeTime", e.target.value)
-                      }
-                      style={{ ...inputStyle, flex: 1 }}
-                    />
-                  </div>
-                </div>
-              ))}
-              <button
-                onClick={addStop}
-                style={{
-                  padding: "11px",
-                  borderRadius: 10,
-                  border: "1.5px dashed #C9BFA8",
-                  background: "transparent",
-                  color: "#5C5745",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                }}
-              >
-                <Plus size={15} /> 新增購物地點
-              </button>
-            </div>
-          </Field>
-        )}
-
         <Field label="備註（選填）">
           <textarea
-            placeholder="Check-in 時間、預約資訊、注意事項…"
-            value={note}
+            placeholder="Check-in 時間、預約資訊…"
+            value={liveItem?.note || ""}
             onChange={(e) => ensureCreatedThenSet("note", e.target.value)}
             rows={3}
             style={{ ...inputStyle, resize: "vertical" }}
@@ -1149,7 +1050,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
         </Field>
 
         <button
-          onClick={handleDone}
+          onClick={() => onClose(liveItem?.id)}
           style={{
             width: "100%",
             marginTop: 8,
@@ -1184,13 +1085,6 @@ function ExpensesView({
     return idx >= 0 ? `Day ${idx + 1}` : "";
   };
 
-  const sorted = [...expenses].sort((a, b) => {
-    const da = days.findIndex((d) => d.id === a.dayId);
-    const db = days.findIndex((d) => d.id === b.dayId);
-    if (da !== db) return da - db;
-    return (a.time || "").localeCompare(b.time || "");
-  });
-
   return (
     <main
       style={{
@@ -1218,46 +1112,28 @@ function ExpensesView({
           <div
             style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}
           >
-            {Object.entries(expenseByCategory).map(([cat, amt]) => {
-              const cfg = EXPENSE_CATEGORIES[cat] || EXPENSE_CATEGORIES.other;
-              return (
-                <div
-                  key={cat}
-                  style={{
-                    fontSize: 11.5,
-                    background: "rgba(244,239,227,0.12)",
-                    borderRadius: 7,
-                    padding: "4px 9px",
-                    display: "flex",
-                    gap: 5,
-                  }}
-                >
-                  <span style={{ opacity: 0.85 }}>{cfg.label}</span>
-                  <span style={{ fontWeight: 700 }}>
-                    ${amt.toLocaleString()}
-                  </span>
-                </div>
-              );
-            })}
+            {Object.entries(expenseByCategory).map(([cat, amt]) => (
+              <div
+                key={cat}
+                style={{
+                  fontSize: 11.5,
+                  background: "rgba(244,239,227,0.12)",
+                  borderRadius: 7,
+                  padding: "4px 9px",
+                  display: "flex",
+                  gap: 5,
+                }}
+              >
+                <span>{EXPENSE_CATEGORIES[cat]?.label || "其他"}</span>
+                <span style={{ fontWeight: 700 }}>${amt.toLocaleString()}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {sorted.length === 0 && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "40px 20px",
-            color: "#A69C82",
-          }}
-        >
-          <Wallet size={28} style={{ opacity: 0.4, marginBottom: 10 }} />
-          <div style={{ fontSize: 14 }}>還沒有任何花費紀錄</div>
-        </div>
-      )}
-
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {sorted.map((e) => {
+        {expenses.map((e) => {
           const cfg =
             EXPENSE_CATEGORIES[e.category] || EXPENSE_CATEGORIES.other;
           return (
@@ -1300,19 +1176,6 @@ function ExpensesView({
                   {e.dayId && (
                     <span style={{ fontSize: 11.5, color: "#A69C82" }}>
                       {dayLabel(e.dayId)}
-                    </span>
-                  )}
-                  {e.paymentMethod && PAYMENT_METHODS[e.paymentMethod] && (
-                    <span
-                      style={{
-                        fontSize: 11.5,
-                        color: "#8A8168",
-                        background: "#EFEAE0",
-                        padding: "2px 7px",
-                        borderRadius: 6,
-                      }}
-                    >
-                      {PAYMENT_METHODS[e.paymentMethod].label}
                     </span>
                   )}
                 </div>
@@ -1406,24 +1269,18 @@ function ExpenseModal({ initial, days, onClose, onSave }) {
     initial?.amount != null ? String(initial.amount) : ""
   );
   const [category, setCategory] = useState(initial?.category || "food");
-  const [paymentMethod, setPaymentMethod] = useState(
-    initial?.paymentMethod || "cash"
-  );
   const [dayId, setDayId] = useState(
     initial?.dayId || (days[0] ? days[0].id : "")
   );
   const [note, setNote] = useState(initial?.note || "");
 
-  const canSave = title.trim() && amount !== "" && !isNaN(parseFloat(amount));
-
   function handleSave() {
-    if (!canSave) return;
+    if (!title.trim() || amount === "" || isNaN(parseFloat(amount))) return;
     onSave({
       id: initial?.id || uid(),
       title: title.trim(),
       amount: parseFloat(amount),
       category,
-      paymentMethod,
       dayId,
       note: note.trim(),
     });
@@ -1457,16 +1314,6 @@ function ExpenseModal({ initial, days, onClose, onSave }) {
       >
         <div
           style={{
-            width: 36,
-            height: 5,
-            background: "#D9CFBB",
-            borderRadius: 3,
-            margin: "0 auto 12px",
-          }}
-        />
-
-        <div
-          style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -1491,50 +1338,14 @@ function ExpenseModal({ initial, days, onClose, onSave }) {
             <X size={22} />
           </button>
         </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            marginBottom: 16,
-            flexWrap: "wrap",
-          }}
-        >
-          {Object.entries(EXPENSE_CATEGORIES).map(([key, cfg]) => {
-            const active = category === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setCategory(key)}
-                style={{
-                  flex: "1 1 27%",
-                  minWidth: 70,
-                  padding: "10px 6px",
-                  borderRadius: 10,
-                  border: active
-                    ? `1.5px solid ${cfg.color}`
-                    : "1.5px solid #E4DCC8",
-                  background: active ? cfg.bg : "#fff",
-                  color: active ? cfg.color : "#8A8168",
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                }}
-              >
-                {cfg.label}
-              </button>
-            );
-          })}
-        </div>
-
         <Field label="項目名稱">
           <input
-            placeholder="例如：晚餐、電車票"
+            placeholder="例如：晚餐"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             style={inputStyle}
           />
         </Field>
-
         <Field label="金額">
           <input
             type="number"
@@ -1545,72 +1356,15 @@ function ExpenseModal({ initial, days, onClose, onSave }) {
             style={inputStyle}
           />
         </Field>
-
-        <Field label="付款方式">
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {Object.entries(PAYMENT_METHODS).map(([key, cfg]) => {
-              const active = paymentMethod === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setPaymentMethod(key)}
-                  style={{
-                    flex: "1 1 22%",
-                    minWidth: 64,
-                    padding: "10px 6px",
-                    borderRadius: 10,
-                    border: active
-                      ? "1.5px solid #2F4538"
-                      : "1.5px solid #E4DCC8",
-                    background: active ? "#EAF0EA" : "#fff",
-                    color: active ? "#2F4538" : "#8A8168",
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                  }}
-                >
-                  {cfg.label}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
-
-        {days.length > 0 && (
-          <Field label="屬於哪一天">
-            <select
-              value={dayId}
-              onChange={(e) => setDayId(e.target.value)}
-              style={inputStyle}
-            >
-              {days.map((d, i) => (
-                <option key={d.id} value={d.id}>
-                  Day {i + 1} — {fmtDateLabel(d.date)}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
-
-        <Field label="備註（選填）">
-          <textarea
-            placeholder="分帳資訊、店名等…"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            style={{ ...inputStyle, resize: "vertical" }}
-          />
-        </Field>
-
         <button
           onClick={handleSave}
-          disabled={!canSave}
           style={{
             width: "100%",
             marginTop: 8,
             padding: "14px",
             borderRadius: 12,
             border: "none",
-            background: canSave ? "#2F4538" : "#D9D2BF",
+            background: "#2F4538",
             color: "#F4EFE3",
             fontWeight: 700,
             fontSize: 15,
@@ -1639,7 +1393,6 @@ function NotebookView({ notes, onChangeNote, onSaveNow }) {
           border: "1px solid #ECE4D2",
           borderRadius: 14,
           padding: "18px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
         }}
       >
         <div
@@ -1663,8 +1416,8 @@ function NotebookView({ notes, onChangeNote, onSaveNow }) {
         <textarea
           value={notes || ""}
           onChange={(e) => onChangeNote(e.target.value)}
-          onBlur={() => onSaveNow()}
-          placeholder="在這裡記下重要的旅遊資訊，例如：護照號碼、飯店電話、門票 QR Code 序號..."
+          onBlur={() => onSaveNow(notes)}
+          placeholder="護照號碼、飯店電話…"
           rows={14}
           style={{
             width: "100%",
@@ -1678,22 +1431,12 @@ function NotebookView({ notes, onChangeNote, onSaveNow }) {
             fontFamily: "inherit",
           }}
         />
-        <div
-          style={{
-            fontSize: 11.5,
-            color: "#8A8168",
-            marginTop: 10,
-            textAlign: "right",
-          }}
-        >
-          * 內容會在離開輸入框或自動每 15 秒同步至雲端
-        </div>
       </div>
     </main>
   );
 }
 
-// --- Checklist / Todo View ---
+// --- Checklist View ---
 function ChecklistView({ todos = [], setTodos, onSaveNow }) {
   const [inputText, setInputText] = useState("");
   const [inputNote, setInputNote] = useState("");
@@ -1769,14 +1512,15 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
     onSaveNow(newTodos);
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditingText("");
-    setEditingNote("");
-  };
-
   const categoriesToDisplay =
     filterCategory === "all" ? Object.keys(TODO_CATEGORIES) : [filterCategory];
+
+  const sortLuggageTodos = (items) => {
+    const moominItems = items.filter((t) => t.owner === "moomin");
+    const handsomeItems = items.filter((t) => t.owner === "handsome");
+    const bothItems = items.filter((t) => t.owner === "both" || !t.owner);
+    return [...moominItems, ...handsomeItems, ...bothItems];
+  };
 
   return (
     <main
@@ -1792,7 +1536,6 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
           border: "1px solid #ECE4D2",
           borderRadius: 14,
           padding: "18px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
         }}
       >
         <div
@@ -1872,7 +1615,7 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
           })}
         </div>
 
-        {/* 新增待辦區塊 */}
+        {/* 新增區塊 */}
         <div
           style={{
             display: "flex",
@@ -1886,7 +1629,7 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addTodo()}
-              placeholder="新增待辦項目（如：換日幣、保養品...）"
+              placeholder="新增待辦項目（如：飛驒牛...）"
               style={{ ...inputStyle, flex: 1 }}
             />
             <button
@@ -1908,11 +1651,10 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
               <Plus size={16} /> 新增
             </button>
           </div>
-
           <input
             value={inputNote}
             onChange={(e) => setInputNote(e.target.value)}
-            placeholder="新增備註（選填，如：店家名稱、規格、放在哪裡...）"
+            placeholder="新增備註（選填）"
             style={{ ...inputStyle, fontSize: 13.5, padding: "8px 12px" }}
           />
 
@@ -1927,28 +1669,26 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
             <span style={{ fontSize: 12, color: "#8A8168", marginRight: 2 }}>
               類別:
             </span>
-            {Object.entries(TODO_CATEGORIES).map(([key, cfg]) => {
-              const active = selectedCategory === key;
-              return (
-                <button
-                  key={key}
-                  onClick={() => setSelectedCategory(key)}
-                  style={{
-                    padding: "4px 9px",
-                    borderRadius: 6,
-                    border: active
+            {Object.entries(TODO_CATEGORIES).map(([key, cfg]) => (
+              <button
+                key={key}
+                onClick={() => setSelectedCategory(key)}
+                style={{
+                  padding: "4px 9px",
+                  borderRadius: 6,
+                  border:
+                    selectedCategory === key
                       ? `1.5px solid ${cfg.color}`
                       : "1px solid #E4DCC8",
-                    background: active ? cfg.bg : "#fff",
-                    color: active ? cfg.color : "#8A8168",
-                    fontSize: 12,
-                    fontWeight: 600,
-                  }}
-                >
-                  {cfg.label}
-                </button>
-              );
-            })}
+                  background: selectedCategory === key ? cfg.bg : "#fff",
+                  color: selectedCategory === key ? cfg.color : "#8A8168",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {cfg.label}
+              </button>
+            ))}
           </div>
 
           {selectedCategory === "luggage" && (
@@ -1960,6 +1700,7 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
                 background: "#E4EEF4",
                 padding: "6px 10px",
                 borderRadius: 8,
+                flexWrap: "wrap",
               }}
             >
               <span
@@ -1977,7 +1718,7 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
               <button
                 onClick={() => setSelectedOwner("moomin")}
                 style={{
-                  padding: "3px 10px",
+                  padding: "3px 9px",
                   borderRadius: 6,
                   border:
                     selectedOwner === "moomin"
@@ -1994,7 +1735,7 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
               <button
                 onClick={() => setSelectedOwner("handsome")}
                 style={{
-                  padding: "3px 10px",
+                  padding: "3px 9px",
                   borderRadius: 6,
                   border:
                     selectedOwner === "handsome"
@@ -2008,25 +1749,46 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
               >
                 帥哥
               </button>
+              <button
+                onClick={() => setSelectedOwner("both")}
+                style={{
+                  padding: "3px 9px",
+                  borderRadius: 6,
+                  border:
+                    selectedOwner === "both"
+                      ? "1.5px solid #2F4538"
+                      : "1px solid #C9BFA8",
+                  background: selectedOwner === "both" ? "#EAF0EA" : "#fff",
+                  color: selectedOwner === "both" ? "#2F4538" : "#5C5745",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 3,
+                }}
+              >
+                <Users size={12} /> 嚕嚕米 ＆ 帥哥
+              </button>
             </div>
           )}
         </div>
 
-        {/* 展示待辦區塊 */}
+        {/* 列表展示 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {categoriesToDisplay.map((catKey) => {
             const catConfig =
               TODO_CATEGORIES[catKey] || TODO_CATEGORIES.important;
             const CatIcon = catConfig.icon;
 
-            const categoryTodos = todos.filter((t) => {
-              const itemCat = t.category || "important";
-              return itemCat === catKey;
-            });
-
-            if (filterCategory === "all" && categoryTodos.length === 0) {
-              return null;
+            let categoryTodos = todos.filter(
+              (t) => (t.category || "important") === catKey
+            );
+            if (catKey === "luggage") {
+              categoryTodos = sortLuggageTodos(categoryTodos);
             }
+
+            if (filterCategory === "all" && categoryTodos.length === 0)
+              return null;
 
             return (
               <div key={catKey}>
@@ -2056,340 +1818,273 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
                   </span>
                 </div>
 
-                {categoryTodos.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "14px",
-                      color: "#A69C82",
-                      fontSize: 12.5,
-                      background: "#FAF6EF",
-                      borderRadius: 8,
-                      textAlign: "center",
-                    }}
-                  >
-                    這個分類目前沒有項目
-                  </div>
-                ) : (
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                  >
-                    {categoryTodos.map((todo) => {
-                      const isEditing = editingId === todo.id;
-
-                      return (
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                >
+                  {categoryTodos.map((todo) => {
+                    const isEditing = editingId === todo.id;
+                    return (
+                      <div
+                        key={todo.id}
+                        onClick={() => !isEditing && toggleTodo(todo.id)}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          background: todo.completed ? "#F7F5F0" : "#FAF6EF",
+                          border: "1px solid #ECE4D2",
+                          cursor: "pointer",
+                        }}
+                      >
                         <div
-                          key={todo.id}
-                          onClick={() => !isEditing && toggleTodo(todo.id)}
                           style={{
                             display: "flex",
                             alignItems: "flex-start",
-                            justifyContent: "space-between",
-                            padding: "10px 12px",
-                            borderRadius: 10,
-                            background: todo.completed ? "#F7F5F0" : "#FAF6EF",
-                            border: "1px solid #ECE4D2",
-                            cursor: isEditing ? "default" : "pointer",
-                            transition: "all 0.15s",
+                            gap: 10,
+                            flex: 1,
+                            minWidth: 0,
                           }}
                         >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: 10,
-                              flex: 1,
-                              minWidth: 0,
-                            }}
-                          >
-                            <div style={{ marginTop: 2 }}>
-                              {todo.completed ? (
-                                <CheckSquare
-                                  size={20}
-                                  color="#2F4538"
-                                  style={{ flexShrink: 0 }}
-                                />
-                              ) : (
-                                <Square
-                                  size={20}
-                                  color="#8A8168"
-                                  style={{ flexShrink: 0 }}
-                                />
+                          <div style={{ marginTop: 2 }}>
+                            {todo.completed ? (
+                              <CheckSquare size={20} color="#2F4538" />
+                            ) : (
+                              <Square size={20} color="#8A8168" />
+                            )}
+                          </div>
+                          {isEditing ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                                flex: 1,
+                              }}
+                            >
+                              <input
+                                autoFocus
+                                value={editingText}
+                                onChange={(e) => setEditingText(e.target.value)}
+                                style={{
+                                  ...inputStyle,
+                                  padding: "4px 8px",
+                                  fontSize: 14,
+                                }}
+                              />
+                              <input
+                                value={editingNote}
+                                onChange={(e) => setEditingNote(e.target.value)}
+                                placeholder="備註"
+                                style={{
+                                  ...inputStyle,
+                                  padding: "4px 8px",
+                                  fontSize: 12.5,
+                                }}
+                              />
+                              {editingCategory === "luggage" && (
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  <button
+                                    onClick={() => setEditingOwner("moomin")}
+                                    style={{
+                                      padding: "2px 8px",
+                                      fontSize: 11,
+                                      borderRadius: 4,
+                                      border:
+                                        editingOwner === "moomin"
+                                          ? "1px solid #8A4F9E"
+                                          : "1px solid #E4DCC8",
+                                      background:
+                                        editingOwner === "moomin"
+                                          ? "#F1E7F5"
+                                          : "#fff",
+                                      color:
+                                        editingOwner === "moomin"
+                                          ? "#8A4F9E"
+                                          : "#8A8168",
+                                    }}
+                                  >
+                                    嚕嚕米
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingOwner("handsome")}
+                                    style={{
+                                      padding: "2px 8px",
+                                      fontSize: 11,
+                                      borderRadius: 4,
+                                      border:
+                                        editingOwner === "handsome"
+                                          ? "1px solid #3D6E8C"
+                                          : "1px solid #E4DCC8",
+                                      background:
+                                        editingOwner === "handsome"
+                                          ? "#E4EEF4"
+                                          : "#fff",
+                                      color:
+                                        editingOwner === "handsome"
+                                          ? "#3D6E8C"
+                                          : "#8A8168",
+                                    }}
+                                  >
+                                    帥哥
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingOwner("both")}
+                                    style={{
+                                      padding: "2px 8px",
+                                      fontSize: 11,
+                                      borderRadius: 4,
+                                      border:
+                                        editingOwner === "both"
+                                          ? "1px solid #2F4538"
+                                          : "1px solid #E4DCC8",
+                                      background:
+                                        editingOwner === "both"
+                                          ? "#EAF0EA"
+                                          : "#fff",
+                                      color:
+                                        editingOwner === "both"
+                                          ? "#2F4538"
+                                          : "#8A8168",
+                                    }}
+                                  >
+                                    嚕嚕米 ＆ 帥哥
+                                  </button>
+                                </div>
                               )}
                             </div>
-
-                            {isEditing ? (
+                          ) : (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 2,
+                              }}
+                            >
                               <div
                                 style={{
                                   display: "flex",
-                                  flexDirection: "column",
+                                  alignItems: "center",
                                   gap: 6,
-                                  flex: 1,
+                                  flexWrap: "wrap",
                                 }}
                               >
-                                <input
-                                  autoFocus
-                                  value={editingText}
-                                  onChange={(e) =>
-                                    setEditingText(e.target.value)
-                                  }
-                                  placeholder="名稱"
+                                <span
                                   style={{
-                                    ...inputStyle,
-                                    padding: "4px 8px",
-                                    fontSize: 14,
-                                  }}
-                                />
-                                <input
-                                  value={editingNote}
-                                  onChange={(e) =>
-                                    setEditingNote(e.target.value)
-                                  }
-                                  placeholder="備註（選填）"
-                                  style={{
-                                    ...inputStyle,
-                                    padding: "4px 8px",
-                                    fontSize: 12.5,
-                                  }}
-                                />
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: 4,
-                                    flexWrap: "wrap",
-                                    marginTop: 2,
+                                    fontSize: 15,
+                                    color: todo.completed
+                                      ? "#A69C82"
+                                      : "#2B2822",
+                                    textDecoration: todo.completed
+                                      ? "line-through"
+                                      : "none",
                                   }}
                                 >
-                                  {Object.entries(TODO_CATEGORIES).map(
-                                    ([k, c]) => (
-                                      <button
-                                        key={k}
-                                        onClick={() => setEditingCategory(k)}
-                                        style={{
-                                          padding: "2px 6px",
-                                          fontSize: 11,
-                                          borderRadius: 4,
-                                          border:
-                                            editingCategory === k
-                                              ? `1px solid ${c.color}`
-                                              : "1px solid #E4DCC8",
-                                          background:
-                                            editingCategory === k
-                                              ? c.bg
-                                              : "#fff",
-                                          color:
-                                            editingCategory === k
-                                              ? c.color
-                                              : "#8A8168",
-                                        }}
-                                      >
-                                        {c.label}
-                                      </button>
-                                    )
-                                  )}
-                                </div>
-                                {editingCategory === "luggage" && (
-                                  <div style={{ display: "flex", gap: 4 }}>
-                                    <button
-                                      onClick={() => setEditingOwner("moomin")}
-                                      style={{
-                                        padding: "2px 8px",
-                                        fontSize: 11,
-                                        borderRadius: 4,
-                                        border:
-                                          editingOwner === "moomin"
-                                            ? "1px solid #8A4F9E"
-                                            : "1px solid #E4DCC8",
-                                        background:
-                                          editingOwner === "moomin"
-                                            ? "#F1E7F5"
-                                            : "#fff",
-                                        color:
-                                          editingOwner === "moomin"
-                                            ? "#8A4F9E"
-                                            : "#8A8168",
-                                      }}
-                                    >
-                                      嚕嚕米
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        setEditingOwner("handsome")
-                                      }
-                                      style={{
-                                        padding: "2px 8px",
-                                        fontSize: 11,
-                                        borderRadius: 4,
-                                        border:
-                                          editingOwner === "handsome"
-                                            ? "1px solid #3D6E8C"
-                                            : "1px solid #E4DCC8",
-                                        background:
-                                          editingOwner === "handsome"
-                                            ? "#E4EEF4"
-                                            : "#fff",
-                                        color:
-                                          editingOwner === "handsome"
-                                            ? "#3D6E8C"
-                                            : "#8A8168",
-                                      }}
-                                    >
-                                      帥哥
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 2,
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    flexWrap: "wrap",
-                                  }}
-                                >
+                                  {todo.text}
+                                </span>
+                                {todo.category === "luggage" && todo.owner && (
                                   <span
                                     style={{
-                                      fontSize: 15,
-                                      color: todo.completed
-                                        ? "#A69C82"
-                                        : "#2B2822",
-                                      textDecoration: todo.completed
-                                        ? "line-through"
-                                        : "none",
-                                      wordBreak: "break-all",
+                                      fontSize: 10.5,
+                                      padding: "1px 6px",
+                                      borderRadius: 4,
+                                      fontWeight: 600,
+                                      background:
+                                        todo.owner === "moomin"
+                                          ? "#F1E7F5"
+                                          : todo.owner === "handsome"
+                                          ? "#E4EEF4"
+                                          : "#EAF0EA",
+                                      color:
+                                        todo.owner === "moomin"
+                                          ? "#8A4F9E"
+                                          : todo.owner === "handsome"
+                                          ? "#3D6E8C"
+                                          : "#2F4538",
                                     }}
                                   >
-                                    {todo.text}
+                                    {todo.owner === "moomin"
+                                      ? "嚕嚕米"
+                                      : todo.owner === "handsome"
+                                      ? "帥哥"
+                                      : "嚕嚕米 ＆ 帥哥"}
                                   </span>
-
-                                  {todo.category === "luggage" &&
-                                    todo.owner && (
-                                      <span
-                                        style={{
-                                          fontSize: 10.5,
-                                          padding: "1px 6px",
-                                          borderRadius: 4,
-                                          fontWeight: 600,
-                                          background:
-                                            todo.owner === "moomin"
-                                              ? "#F1E7F5"
-                                              : "#E4EEF4",
-                                          color:
-                                            todo.owner === "moomin"
-                                              ? "#8A4F9E"
-                                              : "#3D6E8C",
-                                        }}
-                                      >
-                                        {todo.owner === "moomin"
-                                          ? "嚕嚕米"
-                                          : "帥哥"}
-                                      </span>
-                                    )}
-                                </div>
-
-                                {todo.note && (
-                                  <div
-                                    style={{
-                                      fontSize: 12.5,
-                                      color: todo.completed
-                                        ? "#B5AC98"
-                                        : "#7A7360",
-                                      lineHeight: 1.3,
-                                    }}
-                                  >
-                                    📝 {todo.note}
-                                  </div>
                                 )}
                               </div>
-                            )}
-                          </div>
-
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                              marginLeft: 8,
-                            }}
-                          >
-                            {isEditing ? (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    saveEdit(todo.id);
-                                  }}
+                              {todo.note && (
+                                <div
                                   style={{
-                                    border: "none",
-                                    background: "#2F4538",
-                                    color: "#fff",
-                                    borderRadius: 6,
-                                    padding: "4px 8px",
-                                    display: "flex",
-                                    alignItems: "center",
+                                    fontSize: 12.5,
+                                    color: todo.completed
+                                      ? "#B5AC98"
+                                      : "#7A7360",
                                   }}
                                 >
-                                  <Check size={16} />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    cancelEdit();
-                                  }}
-                                  style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    color: "#8A8168",
-                                    padding: 4,
-                                  }}
-                                >
-                                  <X size={16} />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={(e) => startEdit(e, todo)}
-                                  style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    color: "#5C5745",
-                                    padding: 6,
-                                  }}
-                                  title="編輯項目"
-                                >
-                                  <Edit3 size={16} />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteTodo(todo.id);
-                                  }}
-                                  style={{
-                                    border: "none",
-                                    background: "transparent",
-                                    color: "#C1633D",
-                                    padding: 6,
-                                  }}
-                                  title="刪除項目"
-                                >
-                                  <X size={18} />
-                                </button>
-                              </>
-                            )}
-                          </div>
+                                  📝 {todo.note}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                            marginLeft: 8,
+                          }}
+                        >
+                          {isEditing ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                saveEdit(todo.id);
+                              }}
+                              style={{
+                                border: "none",
+                                background: "#2F4538",
+                                color: "#fff",
+                                borderRadius: 6,
+                                padding: "4px 8px",
+                              }}
+                            >
+                              <Check size={16} />
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={(e) => startEdit(e, todo)}
+                                style={{
+                                  border: "none",
+                                  background: "transparent",
+                                  color: "#5C5745",
+                                  padding: 6,
+                                }}
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTodo(todo.id);
+                                }}
+                                style={{
+                                  border: "none",
+                                  background: "transparent",
+                                  color: "#C1633D",
+                                  padding: 6,
+                                }}
+                              >
+                                <X size={18} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -2413,87 +2108,61 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [expenseModal, setExpenseModal] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [confirmDeleteDayId, setConfirmDeleteDayId] = useState(null);
 
   useEffect(() => {
     const tripRef = doc(db, "trips", "kyoto-trip");
+    const unsubscribe = onSnapshot(tripRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setTripName(data.tripName || "日本高山中部散策");
+        setCoverImage(data.coverImage || SAMPLE_TRIP.coverImage);
+        setNotes(data.notes || "");
 
-    const unsubscribe = onSnapshot(
-      tripRef,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setTripName(data.tripName || "日本高山中部散策");
-          setCoverImage(data.coverImage || SAMPLE_TRIP.coverImage);
-          setNotes(data.notes || "");
+        // 強化防護：對每個 todos 補齊安全預設類別，確保要吃（toEat）永遠不會遺失
+        const loadedTodos = (data.todos || []).map((t) => ({
+          ...t,
+          category: t.category || "important",
+        }));
+        setTodos(loadedTodos);
 
-          const loadedTodos = (data.todos || []).map((t) => ({
-            ...t,
-            category: t.category || "important",
-          }));
-          setTodos(loadedTodos);
+        const sortedDays = (data.days || []).map((d) => ({
+          ...d,
+          startPoint: d.startPoint || "",
+          startPointNote: d.startPointNote || "",
+          items: d.items || [],
+        }));
+        setDays(sortedDays);
+        setExpenses(data.expenses || []);
 
-          const sortedDays = (data.days || []).map((d) => ({
-            ...d,
-            startPoint: d.startPoint || "",
-            items: d.items || [],
-          }));
-
-          setDays(sortedDays);
-          setExpenses(data.expenses || []);
-          if (sortedDays && sortedDays.length > 0) {
-            setActiveDay((prev) => prev || sortedDays[0].id);
-          }
-        } else {
-          setDoc(tripRef, SAMPLE_TRIP);
+        if (sortedDays && sortedDays.length > 0) {
+          setActiveDay((prev) => {
+            if (prev) return prev;
+            const today = todayISO();
+            const matchedDay = sortedDays.find((d) => d.date === today);
+            if (matchedDay) return matchedDay.id;
+            return sortedDays[0].id;
+          });
         }
-        setLoaded(true);
-      },
-      (error) => {
-        console.error("Firebase 讀取失敗:", error);
+      } else {
+        setDoc(tripRef, SAMPLE_TRIP);
       }
-    );
-
+      setLoaded(true);
+    });
     return () => unsubscribe();
   }, []);
 
-  const saveNow = async (
-    latestTripName = tripName,
-    latestDays = days,
-    latestExpenses = expenses,
-    latestNotes = notes,
-    latestTodos = todos,
-    latestCoverImage = coverImage
-  ) => {
+  const syncToFirebase = async (patch = {}) => {
     try {
       const tripRef = doc(db, "trips", "kyoto-trip");
-      await setDoc(
-        tripRef,
-        {
-          tripName: latestTripName,
-          days: latestDays,
-          expenses: latestExpenses,
-          notes: latestNotes,
-          todos: latestTodos,
-          coverImage: latestCoverImage,
-        },
-        { merge: true }
-      );
-      console.log("⚡️ 已同步至 Firebase！");
+      await setDoc(tripRef, patch, { merge: true });
+      console.log("⚡️ 精準同步至 Firebase！");
     } catch (err) {
-      console.error("即時寫入失敗:", err);
+      console.error("同步失敗:", err);
     }
   };
 
-  useEffect(() => {
-    if (!loaded) return;
-
-    const timer = setTimeout(() => {
-      saveNow();
-    }, 15000);
-
-    return () => clearTimeout(timer);
-  }, [tripName, days, expenses, notes, todos, coverImage, loaded]);
-
+  // 居中修復的櫻花加國旗動畫
   if (!loaded || (!activeDay && days.length > 0)) {
     return (
       <div
@@ -2510,17 +2179,13 @@ export default function App() {
       >
         <style>{`
           @keyframes spin-sakura {
-            0% { transform: rotate(0deg) scale(0.95); }
-            50% { transform: rotate(180deg) scale(1.05); }
-            100% { transform: rotate(360deg) scale(0.95); }
+            0% { transform: translate(-50%, -50%) rotate(0deg) scale(0.95); }
+            50% { transform: translate(-50%, -50%) rotate(180deg) scale(1.05); }
+            100% { transform: translate(-50%, -50%) rotate(360deg) scale(0.95); }
           }
           @keyframes pulse-glow {
             0%, 100% { opacity: 0.6; transform: scale(0.9); }
             50% { opacity: 1; transform: scale(1.1); }
-          }
-          @keyframes fade-text {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 1; }
           }
           .sakura-container {
             position: relative;
@@ -2541,7 +2206,11 @@ export default function App() {
           }
           .sakura-petals {
             position: absolute;
-            inset: 0;
+            top: 50%;
+            left: 50%;
+            width: 80px;
+            height: 80px;
+            transform: translate(-50%, -50%);
             animation: spin-sakura 6s infinite linear;
           }
           .petal {
@@ -2553,19 +2222,13 @@ export default function App() {
             border-radius: 12px 0 12px 0;
             top: 50%;
             left: 50%;
-            margin-top: -7px;
-            margin-left: -7px;
           }
-          .petal-1 { transform: rotate(0deg) translate(30px); }
-          .petal-2 { transform: rotate(72deg) translate(30px); }
-          .petal-3 { transform: rotate(144deg) translate(30px); }
-          .petal-4 { transform: rotate(216deg) translate(30px); }
-          .petal-5 { transform: rotate(288deg) translate(30px); }
-          .loading-text {
-            animation: fade-text 2s infinite ease-in-out;
-          }
+          .petal-1 { transform: translate(-50%, -50%) rotate(0deg) translate(30px); }
+          .petal-2 { transform: translate(-50%, -50%) rotate(72deg) translate(30px); }
+          .petal-3 { transform: translate(-50%, -50%) rotate(144deg) translate(30px); }
+          .petal-4 { transform: translate(-50%, -50%) rotate(216deg) translate(30px); }
+          .petal-5 { transform: translate(-50%, -50%) rotate(288deg) translate(30px); }
         `}</style>
-
         <div className="sakura-container">
           <div className="japan-sun" />
           <div className="sakura-petals">
@@ -2576,30 +2239,11 @@ export default function App() {
             <div className="petal petal-5" />
           </div>
         </div>
-
-        <div className="loading-text" style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: 3,
-              color: "#C1633D",
-              fontWeight: 700,
-              marginBottom: 4,
-            }}
-          >
-            JAPAN TRAVEL
-          </div>
-          <div
-            className="serif"
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              letterSpacing: 2,
-              color: "#2F4538",
-            }}
-          >
-            雲端同步載入中…
-          </div>
+        <div
+          className="serif"
+          style={{ fontSize: 16, fontWeight: 700, color: "#2F4538" }}
+        >
+          雲端同步載入中…
         </div>
       </div>
     );
@@ -2615,53 +2259,54 @@ export default function App() {
       id: uid(),
       date: base.toISOString().slice(0, 10),
       startPoint: "",
+      startPointNote: "",
       items: [],
     };
     const nextDays = [...days, newDay];
     setDays(nextDays);
     setActiveDay(newDay.id);
-    saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
+    syncToFirebase({ days: nextDays });
   }
 
   function removeDay(id) {
     if (days.length <= 1) return;
     const next = days.filter((d) => d.id !== id);
     setDays(next);
+    setConfirmDeleteDayId(null);
     if (activeDay === id) setActiveDay(next[0].id);
-    saveNow(tripName, next, expenses, notes, todos, coverImage);
+    syncToFirebase({ days: next });
   }
 
   function updateDayDate(id, date) {
     const nextDays = days.map((d) => (d.id === id ? { ...d, date } : d));
     setDays(nextDays);
-    saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
+    syncToFirebase({ days: nextDays });
   }
 
   function updateDayStartPoint(id, startPoint) {
     const nextDays = days.map((d) => (d.id === id ? { ...d, startPoint } : d));
     setDays(nextDays);
-    saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
+    syncToFirebase({ days: nextDays });
+  }
+
+  function updateDayStartPointNote(id, startPointNote) {
+    const nextDays = days.map((d) =>
+      d.id === id ? { ...d, startPointNote } : d
+    );
+    setDays(nextDays);
+    syncToFirebase({ days: nextDays });
   }
 
   function updateItemField(dayId, itemId, field, value) {
-    setDays((prevDays) =>
-      prevDays.map((d) => {
-        if (d.id !== dayId) return d;
-        const updatedItems = d.items.map((it) =>
-          it.id === itemId ? { ...it, [field]: value } : it
-        );
-        return { ...d, items: sortByTime(updatedItems) };
-      })
-    );
-  }
-
-  function addNewItem(dayId, item) {
-    setDays((prevDays) =>
-      prevDays.map((d) => {
-        if (d.id !== dayId) return d;
-        return { ...d, items: sortByTime([...d.items, item]) };
-      })
-    );
+    const nextDays = days.map((d) => {
+      if (d.id !== dayId) return d;
+      const updatedItems = d.items.map((it) =>
+        it.id === itemId ? { ...it, [field]: value } : it
+      );
+      return { ...d, items: sortByTime(updatedItems) };
+    });
+    setDays(nextDays);
+    syncToFirebase({ days: nextDays });
   }
 
   function removeItem(dayId, itemId) {
@@ -2671,72 +2316,13 @@ export default function App() {
         : d
     );
     setDays(nextDays);
-    saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
+    syncToFirebase({ days: nextDays });
   }
-
-  function closeModal(createdItemId) {
-    let nextDays = days;
-    setDays((prev) => {
-      nextDays = prev.map((d) => {
-        if (!modal || d.id !== modal.dayId) return d;
-        let items = d.items;
-        if (createdItemId) {
-          items = items.filter((it) => {
-            if (it.id !== createdItemId) return true;
-            return (
-              (it.title || "").trim() ||
-              (it.place || "").trim() ||
-              (it.origin || "").trim() ||
-              (it.destination || "").trim()
-            );
-          });
-        }
-        return { ...d, items: sortByTime(items) };
-      });
-      return nextDays;
-    });
-    setModal(null);
-    saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
-  }
-
-  function saveExpense(expense) {
-    let nextExpenses = [];
-    setExpenses((prev) => {
-      const exists = prev.some((e) => e.id === expense.id);
-      nextExpenses = exists
-        ? prev.map((e) => (e.id === expense.id ? expense : e))
-        : [...prev, expense];
-      return nextExpenses;
-    });
-    setExpenseModal(null);
-    saveNow(tripName, days, nextExpenses, notes, todos, coverImage);
-  }
-
-  function removeExpense(id) {
-    const nextExpenses = expenses.filter((e) => e.id !== id);
-    setExpenses(nextExpenses);
-    saveNow(tripName, days, nextExpenses, notes, todos, coverImage);
-  }
-
-  const updateCoverImage = (url) => {
-    setCoverImage(url);
-    saveNow(tripName, days, expenses, notes, todos, url);
-  };
-
-  const totalExpense = expenses.reduce(
-    (sum, e) => sum + (parseFloat(e.amount) || 0),
-    0
-  );
-  const expenseByCategory = expenses.reduce((acc, e) => {
-    const cat = e.category || "other";
-    acc[cat] = (acc[cat] || 0) + (parseFloat(e.amount) || 0);
-    return acc;
-  }, {});
 
   return (
     <div
       style={{
-        fontFamily: "'Noto Sans TC', 'Helvetica Neue', sans-serif",
+        fontFamily: "'Noto Sans TC', sans-serif",
         background: "#FAF6EF",
         minHeight: "100vh",
         color: "#2B2822",
@@ -2754,24 +2340,8 @@ export default function App() {
         input, textarea, select { font-family: inherit; }
         .card-enter { animation: rise 0.25s ease both; }
         @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-        .app-container { display: flex; flex-direction: column; width: 100%; max-width: 1024px; margin: 0 auto; position: relative; }
+        .app-container { display: flex; flex-direction: column; width: 100%; max-width: 1024px; margin: 0 auto; }
         .top-nav { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 8px; border-bottom: 1px solid #ECE4D2; background: #FAF6EF; }
-        .main-content { flex: 1; min-width: 0; }
-
-        #csb-devtools, 
-        iframe[src*="codesandbox"],
-        div[class*="csb-"], 
-        div[id*="csb-"], 
-        a[href*="codesandbox.io"],
-        button[title*="Open Sandbox"],
-        [class*="Navigation__container"],
-        [class*="Watermark"] {
-          display: none !important;
-          opacity: 0 !important;
-          pointer-events: none !important;
-          visibility: hidden !important;
-        }
       `}</style>
 
       {/* Header */}
@@ -2780,8 +2350,6 @@ export default function App() {
           background: "#2F4538",
           color: "#F4EFE3",
           padding: "18px 20px 14px",
-          position: "relative",
-          overflow: "hidden",
         }}
       >
         <div
@@ -2811,13 +2379,7 @@ export default function App() {
                 onChange={(e) => setTripName(e.target.value)}
                 onBlur={() => {
                   setEditingTripName(false);
-                  saveNow(tripName, days, expenses, notes, todos, coverImage);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    setEditingTripName(false);
-                    saveNow(tripName, days, expenses, notes, todos, coverImage);
-                  }
+                  syncToFirebase({ tripName });
                 }}
                 className="serif"
                 style={{
@@ -2829,7 +2391,6 @@ export default function App() {
                   fontWeight: 700,
                   outline: "none",
                   width: "100%",
-                  padding: "2px 0",
                 }}
               />
             ) : (
@@ -2842,7 +2403,6 @@ export default function App() {
                   margin: 0,
                   cursor: "pointer",
                 }}
-                title="點擊編輯名稱"
               >
                 {tripName} ✎
               </h1>
@@ -2853,128 +2413,51 @@ export default function App() {
 
       {/* Main Container */}
       <div className="app-container">
-        {/* Top Navigation Bar */}
         <nav className="top-nav scrollbar-thin">
-          <button
-            onClick={() => setView("home")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
-              borderRadius: 10,
-              border: "none",
-              background: view === "home" ? "#2F4538" : "#fff",
-              color: view === "home" ? "#F4EFE3" : "#5C5745",
-              fontWeight: 700,
-              fontSize: 13.5,
-              whiteSpace: "nowrap",
-              transition: "all 0.15s",
-              boxShadow:
-                view === "home" ? "none" : "0 1px 2px rgba(0,0,0,0.03)",
-            }}
-          >
-            <Home size={16} /> 首頁
-          </button>
-
-          <button
-            onClick={() => setView("itinerary")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
-              borderRadius: 10,
-              border: "none",
-              background: view === "itinerary" ? "#2F4538" : "#fff",
-              color: view === "itinerary" ? "#F4EFE3" : "#5C5745",
-              fontWeight: 700,
-              fontSize: 13.5,
-              whiteSpace: "nowrap",
-              transition: "all 0.15s",
-              boxShadow:
-                view === "itinerary" ? "none" : "0 1px 2px rgba(0,0,0,0.03)",
-            }}
-          >
-            <Calendar size={16} /> 行程
-          </button>
-
-          <button
-            onClick={() => setView("checklist")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
-              borderRadius: 10,
-              border: "none",
-              background: view === "checklist" ? "#2F4538" : "#fff",
-              color: view === "checklist" ? "#F4EFE3" : "#5C5745",
-              fontWeight: 700,
-              fontSize: 13.5,
-              whiteSpace: "nowrap",
-              transition: "all 0.15s",
-              boxShadow:
-                view === "checklist" ? "none" : "0 1px 2px rgba(0,0,0,0.03)",
-            }}
-          >
-            <CheckSquare size={16} /> 清單
-          </button>
-
-          <button
-            onClick={() => setView("expenses")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
-              borderRadius: 10,
-              border: "none",
-              background: view === "expenses" ? "#2F4538" : "#fff",
-              color: view === "expenses" ? "#F4EFE3" : "#5C5745",
-              fontWeight: 700,
-              fontSize: 13.5,
-              whiteSpace: "nowrap",
-              transition: "all 0.15s",
-              boxShadow:
-                view === "expenses" ? "none" : "0 1px 2px rgba(0,0,0,0.03)",
-            }}
-          >
-            <Wallet size={16} /> 記帳
-          </button>
-
-          <button
-            onClick={() => setView("notebook")}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 16px",
-              borderRadius: 10,
-              border: "none",
-              background: view === "notebook" ? "#2F4538" : "#fff",
-              color: view === "notebook" ? "#F4EFE3" : "#5C5745",
-              fontWeight: 700,
-              fontSize: 13.5,
-              whiteSpace: "nowrap",
-              transition: "all 0.15s",
-              boxShadow:
-                view === "notebook" ? "none" : "0 1px 2px rgba(0,0,0,0.03)",
-            }}
-          >
-            <BookOpen size={16} /> 記事本
-          </button>
+          {[
+            { id: "home", label: "首頁", icon: Home },
+            { id: "itinerary", label: "行程", icon: Calendar },
+            { id: "checklist", label: "清單", icon: CheckSquare },
+            { id: "expenses", label: "記帳", icon: Wallet },
+            { id: "notebook", label: "記事本", icon: BookOpen },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = view === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setView(tab.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 16px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: active ? "#2F4538" : "#fff",
+                  color: active ? "#F4EFE3" : "#5C5745",
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Icon size={16} /> {tab.label}
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Right Main Content */}
-        <div className="main-content">
+        <div style={{ flex: 1 }}>
           {view === "home" && (
             <HomeView
               tripName={tripName}
               days={days}
               coverImage={coverImage}
-              onUpdateCoverImage={updateCoverImage}
-              onNavigate={(v) => setView(v)}
+              onUpdateCoverImage={(url) => {
+                setCoverImage(url);
+                syncToFirebase({ coverImage: url });
+              }}
+              onNavigate={setView}
             />
           )}
 
@@ -3014,7 +2497,6 @@ export default function App() {
                       fontWeight: 600,
                       textAlign: "left",
                       minWidth: 85,
-                      transition: "all 0.15s",
                     }}
                   >
                     <div
@@ -3028,7 +2510,6 @@ export default function App() {
                 <button
                   onClick={addDay}
                   style={{
-                    flex: "0 0 auto",
                     width: 42,
                     borderRadius: 9,
                     border: "1.5px dashed #C9BFA8",
@@ -3049,60 +2530,39 @@ export default function App() {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
+                      gap: 8,
                       margin: "4px 2px 12px",
                     }}
                   >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 8 }}
-                    >
-                      <Calendar size={16} color="#8A8168" />
-                      <input
-                        type="date"
-                        value={currentDay.date}
-                        onChange={(e) =>
-                          updateDayDate(currentDay.id, e.target.value)
-                        }
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          fontSize: 15,
-                          color: "#5C5745",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      />
-                    </div>
-                    {days.length > 1 && (
-                      <button
-                        onClick={() => removeDay(currentDay.id)}
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          color: "#B08A6F",
-                          fontSize: 12.5,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <Trash2 size={14} /> 刪除這天
-                      </button>
-                    )}
+                    <Calendar size={16} color="#8A8168" />
+                    <input
+                      type="date"
+                      value={currentDay.date}
+                      onChange={(e) =>
+                        updateDayDate(currentDay.id, e.target.value)
+                      }
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        fontSize: 15,
+                        color: "#5C5745",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    />
                   </div>
 
-                  {/* 每天的最上方：當日起點獨立欄位 */}
+                  {/* 當日起點（含備註欄） */}
                   <div
                     style={{
                       background: "#FAF6EF",
                       border: "1.5px solid #D9CFBB",
                       borderRadius: 12,
-                      padding: "10px 14px",
+                      padding: "12px 14px",
                       marginBottom: 16,
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 10,
+                      flexDirection: "column",
+                      gap: 8,
                       boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
                     }}
                   >
@@ -3110,89 +2570,96 @@ export default function App() {
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 8,
-                        flex: 1,
-                        minWidth: 0,
+                        justifyContent: "space-between",
+                        gap: 10,
                       }}
                     >
-                      <Flag
-                        size={16}
-                        color="#C1633D"
-                        style={{ flexShrink: 0 }}
-                      />
-                      <span
-                        style={{
-                          fontSize: 12.5,
-                          fontWeight: 700,
-                          color: "#C1633D",
-                          flexShrink: 0,
-                        }}
-                      >
-                        當日起點:
-                      </span>
-                      <input
-                        value={currentDay.startPoint || ""}
-                        onChange={(e) =>
-                          updateDayStartPoint(currentDay.id, e.target.value)
-                        }
-                        placeholder="點擊填寫當日起點（如：名古屋車站、飯店名稱）"
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          fontSize: 13.5,
-                          fontWeight: 600,
-                          color: "#2B2822",
-                          outline: "none",
-                          width: "100%",
-                        }}
-                      />
-                    </div>
-
-                    {currentDay.startPoint && (
-                      <a
-                        href={mapsUrl(currentDay.startPoint)}
-                        target="_blank"
-                        rel="noreferrer"
+                      <div
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: 3,
-                          fontSize: 12,
-                          color: "#2F4538",
-                          fontWeight: 600,
-                          textDecoration: "none",
-                          flexShrink: 0,
-                          background: "#EAF0EA",
-                          padding: "4px 8px",
-                          borderRadius: 6,
+                          gap: 8,
+                          flex: 1,
+                          minWidth: 0,
                         }}
                       >
-                        開啟地圖 <ExternalLink size={12} />
-                      </a>
-                    )}
+                        <Flag
+                          size={16}
+                          color="#C1633D"
+                          style={{ flexShrink: 0 }}
+                        />
+                        <span
+                          style={{
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            color: "#C1633D",
+                            flexShrink: 0,
+                          }}
+                        >
+                          當日起點:
+                        </span>
+                        <input
+                          value={currentDay.startPoint || ""}
+                          onChange={(e) =>
+                            updateDayStartPoint(currentDay.id, e.target.value)
+                          }
+                          placeholder="填寫當日起點（如：名古屋車站）"
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            color: "#2B2822",
+                            outline: "none",
+                            width: "100%",
+                          }}
+                        />
+                      </div>
+                      {currentDay.startPoint && (
+                        <a
+                          href={mapsUrl(currentDay.startPoint)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 3,
+                            fontSize: 12,
+                            color: "#2F4538",
+                            fontWeight: 600,
+                            textDecoration: "none",
+                            background: "#EAF0EA",
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                            flexShrink: 0,
+                          }}
+                        >
+                          開啟地圖 <ExternalLink size={12} />
+                        </a>
+                      )}
+                    </div>
+
+                    <input
+                      value={currentDay.startPointNote || ""}
+                      onChange={(e) =>
+                        updateDayStartPointNote(currentDay.id, e.target.value)
+                      }
+                      placeholder="起點備註（選填，如：11:00前需退房、寄放行李卡...）"
+                      style={{
+                        border: "none",
+                        borderTop: "1px dashed #E4DCC8",
+                        background: "transparent",
+                        fontSize: 12.5,
+                        color: "#7A7360",
+                        outline: "none",
+                        paddingTop: 6,
+                        width: "100%",
+                      }}
+                    />
                   </div>
 
-                  {currentDay.items.length === 0 && (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        padding: "48px 20px",
-                        color: "#A69C82",
-                      }}
-                    >
-                      <MapPin
-                        size={28}
-                        style={{ opacity: 0.4, marginBottom: 10 }}
-                      />
-                      <div style={{ fontSize: 14 }}>這天還是空白的一頁</div>
-                      <div style={{ fontSize: 12, marginTop: 4 }}>
-                        加入景點、住宿或美食,開始安排路線
-                      </div>
-                    </div>
-                  )}
-
+                  {/* 時間軸列表 */}
                   <div style={{ position: "relative" }}>
-                    {/* 左側時間貫穿軸線 */}
                     {currentDay.items.length > 0 && (
                       <div
                         style={{
@@ -3211,32 +2678,23 @@ export default function App() {
                     {currentDay.items.map((item, idx) => {
                       const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.spot;
                       const IconCmp = cfg.icon;
-
-                      const effectivePlace = (arr, i) => {
-                        const it = arr[i];
-                        if (!it) return null;
-                        return it.type === "transport"
-                          ? it.destination || it.origin
-                          : it.place;
-                      };
-
-                      // 第一站的上一站優先帶入當日起點 startPoint
                       const prevPlace =
                         idx > 0
-                          ? effectivePlace(currentDay.items, idx - 1)
+                          ? currentDay.items[idx - 1].type === "transport"
+                            ? currentDay.items[idx - 1].destination
+                            : currentDay.items[idx - 1].place
                           : currentDay.startPoint || null;
 
                       return (
                         <div
                           key={item.id}
-                          className="itinerary-card card-enter"
+                          className="card-enter"
                           style={{
                             position: "relative",
                             paddingLeft: 52,
                             marginBottom: 16,
                           }}
                         >
-                          {/* 左側圖示與時間 */}
                           <div
                             style={{
                               position: "absolute",
@@ -3263,7 +2721,6 @@ export default function App() {
                             >
                               <IconCmp size={13} color={cfg.color} />
                             </div>
-
                             {item.time && (
                               <div
                                 style={{
@@ -3271,26 +2728,12 @@ export default function App() {
                                   fontWeight: 700,
                                   color: "#5C5745",
                                   marginTop: 4,
-                                  lineHeight: 1.2,
-                                  textAlign: "center",
-                                  whiteSpace: "nowrap",
                                   background: "#FAF6EF",
                                   padding: "1px 3px",
                                   borderRadius: 4,
                                 }}
                               >
                                 {item.time}
-                                {item.type === "transport" &&
-                                  item.arriveTime && (
-                                    <div
-                                      style={{
-                                        fontSize: 9.5,
-                                        color: "#8A8168",
-                                      }}
-                                    >
-                                      ↓ {item.arriveTime}
-                                    </div>
-                                  )}
                               </div>
                             )}
                           </div>
@@ -3325,8 +2768,6 @@ export default function App() {
                               border: "1px solid #ECE4D2",
                               borderRadius: 12,
                               padding: "14px",
-                              boxShadow: "0 1px 2px rgba(43,40,34,0.04)",
-                              position: "relative",
                             }}
                           >
                             <div
@@ -3334,7 +2775,6 @@ export default function App() {
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "flex-start",
-                                gap: 8,
                               }}
                             >
                               <div style={{ flex: 1, minWidth: 0 }}>
@@ -3363,16 +2803,9 @@ export default function App() {
                                       style={{
                                         fontSize: 12.5,
                                         color: "#8A8168",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 3,
                                       }}
                                     >
                                       <Clock size={12} /> {item.time}
-                                      {item.type === "transport" &&
-                                      item.arriveTime
-                                        ? ` → ${item.arriveTime}`
-                                        : ""}
                                     </span>
                                   )}
                                 </div>
@@ -3392,76 +2825,13 @@ export default function App() {
                                       fontSize: 13,
                                       color: "#7A7360",
                                       marginTop: 4,
-                                      lineHeight: 1.5,
                                     }}
                                   >
                                     {item.note}
                                   </div>
                                 )}
-
-                                {item.type === "shopping" &&
-                                  item.stops &&
-                                  item.stops.length > 0 && (
-                                    <div
-                                      style={{
-                                        marginTop: 8,
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        gap: 5,
-                                      }}
-                                    >
-                                      {item.stops.map((s) => (
-                                        <a
-                                          key={s.id}
-                                          href={mapsUrl(s.place)}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            textDecoration: "none",
-                                            background: "#F1E7F5",
-                                            borderRadius: 7,
-                                            padding: "6px 10px",
-                                            fontSize: 12.5,
-                                          }}
-                                        >
-                                          <span
-                                            style={{
-                                              color: "#5C5745",
-                                              overflow: "hidden",
-                                              textOverflow: "ellipsis",
-                                              whiteSpace: "nowrap",
-                                            }}
-                                          >
-                                            {s.place || "（未命名地點）"}
-                                          </span>
-                                          {s.closeTime && (
-                                            <span
-                                              style={{
-                                                color: "#8A8168",
-                                                fontWeight: 600,
-                                                flexShrink: 0,
-                                                marginLeft: 8,
-                                              }}
-                                            >
-                                              {s.closeTime} 關門
-                                            </span>
-                                          )}
-                                        </a>
-                                      ))}
-                                    </div>
-                                  )}
                               </div>
-
-                              <div
-                                style={{
-                                  display: "flex",
-                                  gap: 6,
-                                  flexShrink: 0,
-                                }}
-                              >
+                              <div style={{ display: "flex", gap: 6 }}>
                                 <button
                                   onClick={() =>
                                     setModal({ dayId: currentDay.id, item })
@@ -3495,151 +2865,33 @@ export default function App() {
                             </div>
 
                             {item.type === "transport" ? (
-                              <div
-                                style={{
-                                  marginTop: 10,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 6,
-                                  width: "100%",
-                                }}
-                              >
-                                <div
+                              item.origin &&
+                              item.destination && (
+                                <a
+                                  href={routeUrl(item.origin, item.destination)}
+                                  target="_blank"
+                                  rel="noreferrer"
                                   style={{
-                                    display: "flex",
+                                    marginTop: 10,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
                                     gap: 6,
-                                    flexWrap: "wrap",
+                                    textDecoration: "none",
+                                    background: "#90deb0",
+                                    color: "#1B382B",
+                                    borderRadius: 8,
+                                    padding: "9px 12px",
+                                    fontSize: 12.5,
+                                    fontWeight: 700,
                                     width: "100%",
                                   }}
                                 >
-                                  {item.origin && (
-                                    <a
-                                      href={mapsUrl(item.origin)}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      style={{
-                                        flex: "1 1 calc(50% - 4px)",
-                                        minWidth: "130px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        textDecoration: "none",
-                                        background: "#FAF6EF",
-                                        border: "1px dashed #D9CFBB",
-                                        borderRadius: 8,
-                                        padding: "8px 10px",
-                                        boxSizing: "border-box",
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          fontSize: 12.5,
-                                          color: "#5C5745",
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 5,
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                          fontWeight: 500,
-                                        }}
-                                      >
-                                        <MapPin
-                                          size={14}
-                                          color="#3D6E8C"
-                                          style={{ flexShrink: 0 }}
-                                        />
-                                        起點：{item.origin}
-                                      </span>
-                                      <ExternalLink
-                                        size={12}
-                                        color="#2F4538"
-                                        style={{ flexShrink: 0, marginLeft: 4 }}
-                                      />
-                                    </a>
-                                  )}
-                                  {item.destination && (
-                                    <a
-                                      href={mapsUrl(item.destination)}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      style={{
-                                        flex: "1 1 calc(50% - 4px)",
-                                        minWidth: "130px",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        textDecoration: "none",
-                                        background: "#FAF6EF",
-                                        border: "1px dashed #D9CFBB",
-                                        borderRadius: 8,
-                                        padding: "8px 10px",
-                                        boxSizing: "border-box",
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          fontSize: 12.5,
-                                          color: "#5C5745",
-                                          display: "flex",
-                                          alignItems: "center",
-                                          gap: 5,
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                          fontWeight: 500,
-                                        }}
-                                      >
-                                        <MapPin
-                                          size={14}
-                                          color="#C1633D"
-                                          style={{ flexShrink: 0 }}
-                                        />
-                                        終點：{item.destination}
-                                      </span>
-                                      <ExternalLink
-                                        size={12}
-                                        color="#2F4538"
-                                        style={{ flexShrink: 0, marginLeft: 4 }}
-                                      />
-                                    </a>
-                                  )}
-                                </div>
-
-                                {item.origin && item.destination && (
-                                  <a
-                                    href={routeUrl(
-                                      item.origin,
-                                      item.destination
-                                    )}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      gap: 6,
-                                      textDecoration: "none",
-                                      background: "#90deb0",
-                                      color: "#1B382B",
-                                      borderRadius: 8,
-                                      padding: "9px 12px",
-                                      fontSize: 12.5,
-                                      fontWeight: 700,
-                                      width: "100%",
-                                      boxSizing: "border-box",
-                                    }}
-                                  >
-                                    <Navigation
-                                      size={14}
-                                      color="#1B382B"
-                                      style={{ flexShrink: 0 }}
-                                    />
-                                    開啟 Google Maps 路線導航（{item.origin} ➔{" "}
-                                    {item.destination}）
-                                  </a>
-                                )}
-                              </div>
+                                  <Navigation size={14} color="#1B382B" /> 開啟
+                                  Google Maps 路線導航（{item.origin} ➔{" "}
+                                  {item.destination}）
+                                </a>
+                              )
                             ) : (
                               <a
                                 href={mapsUrl(item.place)}
@@ -3658,22 +2910,9 @@ export default function App() {
                                 }}
                               >
                                 <span
-                                  style={{
-                                    fontSize: 12.5,
-                                    color: "#5C5745",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
+                                  style={{ fontSize: 12.5, color: "#5C5745" }}
                                 >
-                                  <MapPin
-                                    size={13}
-                                    color="#8A8168"
-                                    style={{ flexShrink: 0 }}
-                                  />
+                                  <MapPin size={13} color="#8A8168" />{" "}
                                   {item.place}
                                 </span>
                                 <span
@@ -3681,11 +2920,6 @@ export default function App() {
                                     fontSize: 11.5,
                                     color: "#2F4538",
                                     fontWeight: 600,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 3,
-                                    flexShrink: 0,
-                                    marginLeft: 8,
                                   }}
                                 >
                                   開啟地圖 <ExternalLink size={12} />
@@ -3718,6 +2952,79 @@ export default function App() {
                   >
                     <Plus size={16} /> 新增行程項目
                   </button>
+
+                  {days.length > 1 && (
+                    <div
+                      style={{
+                        marginTop: 32,
+                        textAlign: "center",
+                        borderTop: "1px dashed #E4DCC8",
+                        paddingTop: 16,
+                      }}
+                    >
+                      {confirmDeleteDayId === currentDay.id ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 10,
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 12.5,
+                              color: "#C1633D",
+                              fontWeight: 700,
+                            }}
+                          >
+                            確定要刪除 Day{" "}
+                            {days.findIndex((d) => d.id === currentDay.id) + 1}{" "}
+                            嗎？
+                          </span>
+                          <button
+                            onClick={() => removeDay(currentDay.id)}
+                            style={{
+                              border: "none",
+                              background: "#C1633D",
+                              color: "#fff",
+                              borderRadius: 6,
+                              padding: "4px 10px",
+                              fontSize: 12,
+                            }}
+                          >
+                            確定刪除
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteDayId(null)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              color: "#8A8168",
+                              fontSize: 12,
+                            }}
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteDayId(currentDay.id)}
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            color: "#B5AC98",
+                            fontSize: 12,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <Trash2 size={13} /> 刪除這天行程
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </main>
@@ -3727,37 +3034,38 @@ export default function App() {
             <ExpensesView
               expenses={expenses}
               days={days}
-              totalExpense={totalExpense}
-              expenseByCategory={expenseByCategory}
+              totalExpense={expenses.reduce(
+                (sum, e) => sum + (parseFloat(e.amount) || 0),
+                0
+              )}
+              expenseByCategory={expenses.reduce((acc, e) => {
+                acc[e.category || "other"] =
+                  (acc[e.category || "other"] || 0) +
+                  (parseFloat(e.amount) || 0);
+                return acc;
+              }, {})}
               onAdd={() => setExpenseModal({})}
               onEdit={(expense) => setExpenseModal({ expense })}
-              onDelete={removeExpense}
+              onDelete={(id) => {
+                const next = expenses.filter((x) => x.id !== id);
+                setExpenses(next);
+                syncToFirebase({ expenses: next });
+              }}
             />
           )}
-
           {view === "notebook" && (
             <NotebookView
               notes={notes}
               onChangeNote={setNotes}
-              onSaveNow={() =>
-                saveNow(tripName, days, expenses, notes, todos, coverImage)
-              }
+              onSaveNow={(n) => syncToFirebase({ notes: n })}
             />
           )}
-
           {view === "checklist" && (
             <ChecklistView
               todos={todos}
               setTodos={setTodos}
               onSaveNow={(updatedTodos) =>
-                saveNow(
-                  tripName,
-                  days,
-                  expenses,
-                  notes,
-                  updatedTodos !== undefined ? updatedTodos : todos,
-                  coverImage
-                )
+                syncToFirebase({ todos: updatedTodos })
               }
             />
           )}
@@ -3769,21 +3077,35 @@ export default function App() {
           key={modal.item ? modal.item.id : "new"}
           dayId={modal.dayId}
           initial={modal.item}
-          onClose={closeModal}
-          onCreate={(item) => addNewItem(modal.dayId, item)}
+          onClose={() => setModal(null)}
+          onCreate={(item) => {
+            const nextDays = days.map((d) =>
+              d.id === modal.dayId
+                ? { ...d, items: sortByTime([...d.items, item]) }
+                : d
+            );
+            setDays(nextDays);
+            syncToFirebase({ days: nextDays });
+          }}
           onFieldChange={(itemId, field, value) =>
             updateItemField(modal.dayId, itemId, field, value)
           }
         />
       )}
-
       {expenseModal && (
         <ExpenseModal
           key={expenseModal.expense ? expenseModal.expense.id : "new-expense"}
           initial={expenseModal.expense}
           days={days}
           onClose={() => setExpenseModal(null)}
-          onSave={saveExpense}
+          onSave={(exp) => {
+            const next = expenses.some((e) => e.id === exp.id)
+              ? expenses.map((e) => (e.id === exp.id ? exp : e))
+              : [...expenses, exp];
+            setExpenses(next);
+            setExpenseModal(null);
+            syncToFirebase({ expenses: next });
+          }}
         />
       )}
     </div>
