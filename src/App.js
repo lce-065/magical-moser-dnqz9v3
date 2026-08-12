@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   MapPin,
   Clock,
@@ -26,11 +26,12 @@ import {
   Camera,
   RefreshCw,
   Check,
-  GripVertical,
   AlertCircle,
   Briefcase,
   Utensils,
   Gift,
+  User,
+  Flag,
 } from "lucide-react";
 
 // --- 1. Firebase 初始化 ---
@@ -138,8 +139,18 @@ const EXPENSE_CATEGORIES = {
 };
 
 const TODO_CATEGORIES = {
-  important: { label: "重要", icon: AlertCircle, color: "#C1633D", bg: "#FBEAE1" },
-  luggage: { label: "行李類", icon: Briefcase, color: "#3D6E8C", bg: "#E4EEF4" },
+  important: {
+    label: "重要",
+    icon: AlertCircle,
+    color: "#C1633D",
+    bg: "#FBEAE1",
+  },
+  luggage: {
+    label: "行李類",
+    icon: Briefcase,
+    color: "#3D6E8C",
+    bg: "#E4EEF4",
+  },
   toBuy: { label: "要買", icon: ShoppingBag, color: "#8A4F9E", bg: "#F1E7F5" },
   toEat: { label: "要吃", icon: Utensils, color: "#B8862F", bg: "#FBF0DC" },
   souvenir: { label: "伴手禮", icon: Gift, color: "#2F4538", bg: "#EAF0EA" },
@@ -159,18 +170,70 @@ const SAMPLE_TRIP = {
   notes:
     "1. 護照複影本放隨身包包\n2. 關西機場記得領取 HARUKA 車票\n3. 網卡開通設定說明：設定 -> 行動網路 -> 啟動數據漫遊",
   todos: [
-    { id: uid(), text: "護照及簽證確認", category: "important", completed: true },
-    { id: uid(), text: "預訂日本 eSIM / 漫遊服務", category: "important", completed: false },
-    { id: uid(), text: "換日幣現金", category: "important", completed: false },
-    { id: uid(), text: "個人洗沐保養品", category: "luggage", completed: false },
-    { id: uid(), text: "藥妝合利他命", category: "toBuy", completed: false },
-    { id: uid(), text: "飛驒牛鰻魚飯", category: "toEat", completed: false },
-    { id: uid(), text: "坂角總本舖蝦餅", category: "souvenir", completed: false },
+    {
+      id: uid(),
+      text: "護照及簽證確認",
+      category: "important",
+      note: "放在隨身小包",
+      completed: true,
+    },
+    {
+      id: uid(),
+      text: "預訂日本 eSIM / 漫遊服務",
+      category: "important",
+      note: "出發前一天開通",
+      completed: false,
+    },
+    {
+      id: uid(),
+      text: "換日幣現金",
+      category: "important",
+      note: "預計換 10 萬日圓",
+      completed: false,
+    },
+    {
+      id: uid(),
+      text: "保養品與保濕面膜",
+      category: "luggage",
+      owner: "moomin",
+      note: "嚕嚕米專用分裝瓶",
+      completed: false,
+    },
+    {
+      id: uid(),
+      text: "刮鬍刀與充電線",
+      category: "luggage",
+      owner: "handsome",
+      note: "帥哥必備",
+      completed: false,
+    },
+    {
+      id: uid(),
+      text: "藥妝合利他命強效錠",
+      category: "toBuy",
+      note: "松本清或大國藥妝購入",
+      completed: false,
+    },
+    {
+      id: uid(),
+      text: "飛驒牛鰻魚飯",
+      category: "toEat",
+      note: "味藏天國/廣川鰻魚飯",
+      completed: false,
+    },
+    {
+      id: uid(),
+      text: "坂角總本舖蝦餅",
+      category: "souvenir",
+      note: "機場或名古屋車站購買",
+      completed: false,
+    },
   ],
   days: [
     {
       id: uid(),
       date: "2026-08-15",
+      startPoint: "桃園國際機場第一航廈",
       items: [
         {
           id: uid(),
@@ -251,7 +314,13 @@ function CountdownTimer() {
       const difference = targetDate - now;
 
       if (difference <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isFinished: true });
+        setTimeLeft({
+          days: 0,
+          hours: 0,
+          minutes: 0,
+          seconds: 0,
+          isFinished: true,
+        });
         return;
       }
 
@@ -295,11 +364,16 @@ function CountdownTimer() {
       </div>
 
       {timeLeft.isFinished ? (
-        <div className="serif" style={{ fontSize: 20, fontWeight: 700, color: "#90deb0" }}>
+        <div
+          className="serif"
+          style={{ fontSize: 20, fontWeight: 700, color: "#90deb0" }}
+        >
           🎉 旅程已經展開，祝您旅途愉快！
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+        <div
+          style={{ display: "flex", gap: 8, justifyContent: "space-between" }}
+        >
           {[
             { label: "天", val: timeLeft.days },
             { label: "時", val: timeLeft.hours },
@@ -1619,14 +1693,19 @@ function NotebookView({ notes, onChangeNote, onSaveNow }) {
   );
 }
 
-// --- Checklist / Todo View（支援 5 大分類專屬區塊展示） ---
-function ChecklistView({ todos, setTodos, onSaveNow }) {
+// --- Checklist / Todo View ---
+function ChecklistView({ todos = [], setTodos, onSaveNow }) {
   const [inputText, setInputText] = useState("");
+  const [inputNote, setInputNote] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("important");
+  const [selectedOwner, setSelectedOwner] = useState("moomin");
   const [filterCategory, setFilterCategory] = useState("all");
+
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState("");
+  const [editingNote, setEditingNote] = useState("");
   const [editingCategory, setEditingCategory] = useState("important");
+  const [editingOwner, setEditingOwner] = useState("moomin");
 
   const addTodo = () => {
     if (!inputText.trim()) return;
@@ -1635,12 +1714,15 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
       {
         id: uid(),
         text: inputText.trim(),
+        note: inputNote.trim(),
         category: selectedCategory,
+        owner: selectedCategory === "luggage" ? selectedOwner : undefined,
         completed: false,
       },
     ];
     setTodos(newTodos);
     setInputText("");
+    setInputNote("");
     onSaveNow(newTodos);
   };
 
@@ -1661,33 +1743,40 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
   const startEdit = (e, todo) => {
     e.stopPropagation();
     setEditingId(todo.id);
-    setEditingText(todo.text);
+    setEditingText(todo.text || "");
+    setEditingNote(todo.note || "");
     setEditingCategory(todo.category || "important");
+    setEditingOwner(todo.owner || "moomin");
   };
 
   const saveEdit = (id) => {
     if (!editingText.trim()) return;
     const newTodos = todos.map((t) =>
       t.id === id
-        ? { ...t, text: editingText.trim(), category: editingCategory }
+        ? {
+            ...t,
+            text: editingText.trim(),
+            note: editingNote.trim(),
+            category: editingCategory,
+            owner: editingCategory === "luggage" ? editingOwner : undefined,
+          }
         : t
     );
     setTodos(newTodos);
     setEditingId(null);
     setEditingText("");
+    setEditingNote("");
     onSaveNow(newTodos);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditingText("");
+    setEditingNote("");
   };
 
-  // 分類過濾邏輯
   const categoriesToDisplay =
-    filterCategory === "all"
-      ? Object.keys(TODO_CATEGORIES)
-      : [filterCategory];
+    filterCategory === "all" ? Object.keys(TODO_CATEGORIES) : [filterCategory];
 
   return (
     <main
@@ -1741,7 +1830,10 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
             style={{
               padding: "6px 12px",
               borderRadius: 8,
-              border: filterCategory === "all" ? "1.5px solid #2F4538" : "1px solid #E4DCC8",
+              border:
+                filterCategory === "all"
+                  ? "1.5px solid #2F4538"
+                  : "1px solid #E4DCC8",
               background: filterCategory === "all" ? "#2F4538" : "#FAF6EF",
               color: filterCategory === "all" ? "#fff" : "#5C5745",
               fontSize: 12.5,
@@ -1761,7 +1853,9 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
                 style={{
                   padding: "6px 12px",
                   borderRadius: 8,
-                  border: active ? `1.5px solid ${cfg.color}` : "1px solid #E4DCC8",
+                  border: active
+                    ? `1.5px solid ${cfg.color}`
+                    : "1px solid #E4DCC8",
                   background: active ? cfg.bg : "#FAF6EF",
                   color: active ? cfg.color : "#5C5745",
                   fontSize: 12.5,
@@ -1779,13 +1873,20 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
         </div>
 
         {/* 新增待辦區塊 */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            marginBottom: 20,
+          }}
+        >
           <div style={{ display: "flex", gap: 8 }}>
             <input
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addTodo()}
-              placeholder="新增待辦項目（如：換日幣...）"
+              placeholder="新增待辦項目（如：換日幣、保養品...）"
               style={{ ...inputStyle, flex: 1 }}
             />
             <button
@@ -1808,9 +1909,22 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
             </button>
           </div>
 
-          {/* 新增時的分類選擇 */}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: "#8A8168", alignSelf: "center", marginRight: 4 }}>
+          <input
+            value={inputNote}
+            onChange={(e) => setInputNote(e.target.value)}
+            placeholder="新增備註（選填，如：店家名稱、規格、放在哪裡...）"
+            style={{ ...inputStyle, fontSize: 13.5, padding: "8px 12px" }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontSize: 12, color: "#8A8168", marginRight: 2 }}>
               類別:
             </span>
             {Object.entries(TODO_CATEGORIES).map(([key, cfg]) => {
@@ -1822,7 +1936,9 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
                   style={{
                     padding: "4px 9px",
                     borderRadius: 6,
-                    border: active ? `1.5px solid ${cfg.color}` : "1px solid #E4DCC8",
+                    border: active
+                      ? `1.5px solid ${cfg.color}`
+                      : "1px solid #E4DCC8",
                     background: active ? cfg.bg : "#fff",
                     color: active ? cfg.color : "#8A8168",
                     fontSize: 12,
@@ -1834,16 +1950,79 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
               );
             })}
           </div>
+
+          {selectedCategory === "luggage" && (
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                alignItems: "center",
+                background: "#E4EEF4",
+                padding: "6px 10px",
+                borderRadius: 8,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12,
+                  color: "#3D6E8C",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
+              >
+                <User size={13} /> 行李歸屬:
+              </span>
+              <button
+                onClick={() => setSelectedOwner("moomin")}
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  border:
+                    selectedOwner === "moomin"
+                      ? "1.5px solid #8A4F9E"
+                      : "1px solid #C9BFA8",
+                  background: selectedOwner === "moomin" ? "#F1E7F5" : "#fff",
+                  color: selectedOwner === "moomin" ? "#8A4F9E" : "#5C5745",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                嚕嚕米
+              </button>
+              <button
+                onClick={() => setSelectedOwner("handsome")}
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  border:
+                    selectedOwner === "handsome"
+                      ? "1.5px solid #3D6E8C"
+                      : "1px solid #C9BFA8",
+                  background: selectedOwner === "handsome" ? "#E4EEF4" : "#fff",
+                  color: selectedOwner === "handsome" ? "#3D6E8C" : "#5C5745",
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                帥哥
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* 分分類展示待辦區塊 */}
+        {/* 展示待辦區塊 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {categoriesToDisplay.map((catKey) => {
-            const catConfig = TODO_CATEGORIES[catKey];
+            const catConfig =
+              TODO_CATEGORIES[catKey] || TODO_CATEGORIES.important;
             const CatIcon = catConfig.icon;
-            const categoryTodos = todos.filter(
-              (t) => (t.category || "important") === catKey
-            );
+
+            const categoryTodos = todos.filter((t) => {
+              const itemCat = t.category || "important";
+              return itemCat === catKey;
+            });
 
             if (filterCategory === "all" && categoryTodos.length === 0) {
               return null;
@@ -1851,7 +2030,6 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
 
             return (
               <div key={catKey}>
-                {/* 分類標題 */}
                 <div
                   style={{
                     display: "flex",
@@ -1892,7 +2070,9 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
                     這個分類目前沒有項目
                   </div>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                  >
                     {categoryTodos.map((todo) => {
                       const isEditing = editingId === todo.id;
 
@@ -1902,7 +2082,7 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
                           onClick={() => !isEditing && toggleTodo(todo.id)}
                           style={{
                             display: "flex",
-                            alignItems: "center",
+                            alignItems: "flex-start",
                             justifyContent: "space-between",
                             padding: "10px 12px",
                             borderRadius: 10,
@@ -1915,74 +2095,219 @@ function ChecklistView({ todos, setTodos, onSaveNow }) {
                           <div
                             style={{
                               display: "flex",
-                              alignItems: "center",
+                              alignItems: "flex-start",
                               gap: 10,
                               flex: 1,
                               minWidth: 0,
                             }}
                           >
-                            {todo.completed ? (
-                              <CheckSquare
-                                size={20}
-                                color="#2F4538"
-                                style={{ flexShrink: 0 }}
-                              />
-                            ) : (
-                              <Square
-                                size={20}
-                                color="#8A8168"
-                                style={{ flexShrink: 0 }}
-                              />
-                            )}
+                            <div style={{ marginTop: 2 }}>
+                              {todo.completed ? (
+                                <CheckSquare
+                                  size={20}
+                                  color="#2F4538"
+                                  style={{ flexShrink: 0 }}
+                                />
+                              ) : (
+                                <Square
+                                  size={20}
+                                  color="#8A8168"
+                                  style={{ flexShrink: 0 }}
+                                />
+                              )}
+                            </div>
 
                             {isEditing ? (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 6,
+                                  flex: 1,
+                                }}
+                              >
                                 <input
                                   autoFocus
                                   value={editingText}
-                                  onChange={(e) => setEditingText(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") saveEdit(todo.id);
-                                    if (e.key === "Escape") cancelEdit();
-                                  }}
+                                  onChange={(e) =>
+                                    setEditingText(e.target.value)
+                                  }
+                                  placeholder="名稱"
                                   style={{
                                     ...inputStyle,
                                     padding: "4px 8px",
                                     fontSize: 14,
                                   }}
                                 />
-                                <div style={{ display: "flex", gap: 4 }}>
-                                  {Object.entries(TODO_CATEGORIES).map(([k, c]) => (
+                                <input
+                                  value={editingNote}
+                                  onChange={(e) =>
+                                    setEditingNote(e.target.value)
+                                  }
+                                  placeholder="備註（選填）"
+                                  style={{
+                                    ...inputStyle,
+                                    padding: "4px 8px",
+                                    fontSize: 12.5,
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: 4,
+                                    flexWrap: "wrap",
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {Object.entries(TODO_CATEGORIES).map(
+                                    ([k, c]) => (
+                                      <button
+                                        key={k}
+                                        onClick={() => setEditingCategory(k)}
+                                        style={{
+                                          padding: "2px 6px",
+                                          fontSize: 11,
+                                          borderRadius: 4,
+                                          border:
+                                            editingCategory === k
+                                              ? `1px solid ${c.color}`
+                                              : "1px solid #E4DCC8",
+                                          background:
+                                            editingCategory === k
+                                              ? c.bg
+                                              : "#fff",
+                                          color:
+                                            editingCategory === k
+                                              ? c.color
+                                              : "#8A8168",
+                                        }}
+                                      >
+                                        {c.label}
+                                      </button>
+                                    )
+                                  )}
+                                </div>
+                                {editingCategory === "luggage" && (
+                                  <div style={{ display: "flex", gap: 4 }}>
                                     <button
-                                      key={k}
-                                      onClick={() => setEditingCategory(k)}
+                                      onClick={() => setEditingOwner("moomin")}
                                       style={{
-                                        padding: "2px 6px",
+                                        padding: "2px 8px",
                                         fontSize: 11,
                                         borderRadius: 4,
-                                        border: editingCategory === k ? `1px solid ${c.color}` : "1px solid #E4DCC8",
-                                        background: editingCategory === k ? c.bg : "#fff",
-                                        color: editingCategory === k ? c.color : "#8A8168",
+                                        border:
+                                          editingOwner === "moomin"
+                                            ? "1px solid #8A4F9E"
+                                            : "1px solid #E4DCC8",
+                                        background:
+                                          editingOwner === "moomin"
+                                            ? "#F1E7F5"
+                                            : "#fff",
+                                        color:
+                                          editingOwner === "moomin"
+                                            ? "#8A4F9E"
+                                            : "#8A8168",
                                       }}
                                     >
-                                      {c.label}
+                                      嚕嚕米
                                     </button>
-                                  ))}
-                                </div>
+                                    <button
+                                      onClick={() =>
+                                        setEditingOwner("handsome")
+                                      }
+                                      style={{
+                                        padding: "2px 8px",
+                                        fontSize: 11,
+                                        borderRadius: 4,
+                                        border:
+                                          editingOwner === "handsome"
+                                            ? "1px solid #3D6E8C"
+                                            : "1px solid #E4DCC8",
+                                        background:
+                                          editingOwner === "handsome"
+                                            ? "#E4EEF4"
+                                            : "#fff",
+                                        color:
+                                          editingOwner === "handsome"
+                                            ? "#3D6E8C"
+                                            : "#8A8168",
+                                      }}
+                                    >
+                                      帥哥
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ) : (
-                              <span
+                              <div
                                 style={{
-                                  fontSize: 15,
-                                  color: todo.completed ? "#A69C82" : "#2B2822",
-                                  textDecoration: todo.completed
-                                    ? "line-through"
-                                    : "none",
-                                  wordBreak: "break-all",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 2,
                                 }}
                               >
-                                {todo.text}
-                              </span>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: 15,
+                                      color: todo.completed
+                                        ? "#A69C82"
+                                        : "#2B2822",
+                                      textDecoration: todo.completed
+                                        ? "line-through"
+                                        : "none",
+                                      wordBreak: "break-all",
+                                    }}
+                                  >
+                                    {todo.text}
+                                  </span>
+
+                                  {todo.category === "luggage" &&
+                                    todo.owner && (
+                                      <span
+                                        style={{
+                                          fontSize: 10.5,
+                                          padding: "1px 6px",
+                                          borderRadius: 4,
+                                          fontWeight: 600,
+                                          background:
+                                            todo.owner === "moomin"
+                                              ? "#F1E7F5"
+                                              : "#E4EEF4",
+                                          color:
+                                            todo.owner === "moomin"
+                                              ? "#8A4F9E"
+                                              : "#3D6E8C",
+                                        }}
+                                      >
+                                        {todo.owner === "moomin"
+                                          ? "嚕嚕米"
+                                          : "帥哥"}
+                                      </span>
+                                    )}
+                                </div>
+
+                                {todo.note && (
+                                  <div
+                                    style={{
+                                      fontSize: 12.5,
+                                      color: todo.completed
+                                        ? "#B5AC98"
+                                        : "#7A7360",
+                                      lineHeight: 1.3,
+                                    }}
+                                  >
+                                    📝 {todo.note}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
 
@@ -2089,9 +2414,6 @@ export default function App() {
   const [expenseModal, setExpenseModal] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
-  const [draggedItemIndex, setDraggedItemIndex] = useState(null);
-  const containerRef = useRef(null);
-
   useEffect(() => {
     const tripRef = doc(db, "trips", "kyoto-trip");
 
@@ -2103,10 +2425,16 @@ export default function App() {
           setTripName(data.tripName || "日本高山中部散策");
           setCoverImage(data.coverImage || SAMPLE_TRIP.coverImage);
           setNotes(data.notes || "");
-          setTodos(data.todos || []);
+
+          const loadedTodos = (data.todos || []).map((t) => ({
+            ...t,
+            category: t.category || "important",
+          }));
+          setTodos(loadedTodos);
 
           const sortedDays = (data.days || []).map((d) => ({
             ...d,
+            startPoint: d.startPoint || "",
             items: d.items || [],
           }));
 
@@ -2286,6 +2614,7 @@ export default function App() {
     const newDay = {
       id: uid(),
       date: base.toISOString().slice(0, 10),
+      startPoint: "",
       items: [],
     };
     const nextDays = [...days, newDay];
@@ -2304,6 +2633,12 @@ export default function App() {
 
   function updateDayDate(id, date) {
     const nextDays = days.map((d) => (d.id === id ? { ...d, date } : d));
+    setDays(nextDays);
+    saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
+  }
+
+  function updateDayStartPoint(id, startPoint) {
+    const nextDays = days.map((d) => (d.id === id ? { ...d, startPoint } : d));
     setDays(nextDays);
     saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
   }
@@ -2363,70 +2698,6 @@ export default function App() {
     setModal(null);
     saveNow(tripName, nextDays, expenses, notes, todos, coverImage);
   }
-
-  // --- 電腦滑鼠 Drag & Drop 邏輯 ---
-  const handleDragStart = (index) => {
-    setDraggedItemIndex(index);
-  };
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    if (draggedItemIndex === null || draggedItemIndex === index) return;
-
-    const newItems = [...currentDay.items];
-    const draggedItem = newItems[draggedItemIndex];
-    newItems.splice(draggedItemIndex, 1);
-    newItems.splice(index, 0, draggedItem);
-
-    setDraggedItemIndex(index);
-    const updatedDays = days.map((d) =>
-      d.id === currentDay.id ? { ...d, items: newItems } : d
-    );
-    setDays(updatedDays);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedItemIndex(null);
-    saveNow(tripName, days, expenses, notes, todos, coverImage);
-  };
-
-  // --- 手機觸控 Touch 拖曳邏輯 ---
-  const handleTouchStart = (index) => {
-    setDraggedItemIndex(index);
-  };
-
-  const handleTouchMove = (e) => {
-    if (draggedItemIndex === null) return;
-    const touchY = e.touches[0].clientY;
-
-    if (containerRef.current) {
-      const cards = containerRef.current.querySelectorAll(".itinerary-card");
-      cards.forEach((card, index) => {
-        const rect = card.getBoundingClientRect();
-        if (touchY >= rect.top && touchY <= rect.bottom) {
-          if (index !== draggedItemIndex) {
-            const newItems = [...currentDay.items];
-            const draggedItem = newItems[draggedItemIndex];
-            newItems.splice(draggedItemIndex, 1);
-            newItems.splice(index, 0, draggedItem);
-
-            setDraggedItemIndex(index);
-            const updatedDays = days.map((d) =>
-              d.id === currentDay.id ? { ...d, items: newItems } : d
-            );
-            setDays(updatedDays);
-          }
-        }
-      });
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (draggedItemIndex !== null) {
-      setDraggedItemIndex(null);
-      saveNow(tripName, days, expenses, notes, todos, coverImage);
-    }
-  };
 
   function saveExpense(expense) {
     let nextExpenses = [];
@@ -2779,7 +3050,7 @@ export default function App() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      margin: "4px 2px 16px",
+                      margin: "4px 2px 12px",
                     }}
                   >
                     <div
@@ -2820,6 +3091,87 @@ export default function App() {
                     )}
                   </div>
 
+                  {/* 每天的最上方：當日起點獨立欄位 */}
+                  <div
+                    style={{
+                      background: "#FAF6EF",
+                      border: "1.5px solid #D9CFBB",
+                      borderRadius: 12,
+                      padding: "10px 14px",
+                      marginBottom: 16,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <Flag
+                        size={16}
+                        color="#C1633D"
+                        style={{ flexShrink: 0 }}
+                      />
+                      <span
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          color: "#C1633D",
+                          flexShrink: 0,
+                        }}
+                      >
+                        當日起點:
+                      </span>
+                      <input
+                        value={currentDay.startPoint || ""}
+                        onChange={(e) =>
+                          updateDayStartPoint(currentDay.id, e.target.value)
+                        }
+                        placeholder="點擊填寫當日起點（如：名古屋車站、飯店名稱）"
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          fontSize: 13.5,
+                          fontWeight: 600,
+                          color: "#2B2822",
+                          outline: "none",
+                          width: "100%",
+                        }}
+                      />
+                    </div>
+
+                    {currentDay.startPoint && (
+                      <a
+                        href={mapsUrl(currentDay.startPoint)}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 3,
+                          fontSize: 12,
+                          color: "#2F4538",
+                          fontWeight: 600,
+                          textDecoration: "none",
+                          flexShrink: 0,
+                          background: "#EAF0EA",
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                        }}
+                      >
+                        開啟地圖 <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
+
                   {currentDay.items.length === 0 && (
                     <div
                       style={{
@@ -2839,12 +3191,7 @@ export default function App() {
                     </div>
                   )}
 
-                  <div
-                    ref={containerRef}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    style={{ position: "relative" }}
-                  >
+                  <div style={{ position: "relative" }}>
                     {/* 左側時間貫穿軸線 */}
                     {currentDay.items.length > 0 && (
                       <div
@@ -2872,25 +3219,21 @@ export default function App() {
                           ? it.destination || it.origin
                           : it.place;
                       };
+
+                      // 第一站的上一站優先帶入當日起點 startPoint
                       const prevPlace =
                         idx > 0
                           ? effectivePlace(currentDay.items, idx - 1)
-                          : null;
+                          : currentDay.startPoint || null;
 
                       return (
                         <div
                           key={item.id}
                           className="itinerary-card card-enter"
-                          draggable
-                          onDragStart={() => handleDragStart(idx)}
-                          onDragOver={(e) => handleDragOver(e, idx)}
-                          onDragEnd={handleDragEnd}
                           style={{
                             position: "relative",
                             paddingLeft: 52,
                             marginBottom: 16,
-                            opacity: draggedItemIndex === idx ? 0.4 : 1,
-                            transition: "opacity 0.2s",
                           }}
                         >
                           {/* 左側圖示與時間 */}
@@ -2937,11 +3280,17 @@ export default function App() {
                                 }}
                               >
                                 {item.time}
-                                {item.type === "transport" && item.arriveTime && (
-                                  <div style={{ fontSize: 9.5, color: "#8A8168" }}>
-                                    ↓ {item.arriveTime}
-                                  </div>
-                                )}
+                                {item.type === "transport" &&
+                                  item.arriveTime && (
+                                    <div
+                                      style={{
+                                        fontSize: 9.5,
+                                        color: "#8A8168",
+                                      }}
+                                    >
+                                      ↓ {item.arriveTime}
+                                    </div>
+                                  )}
                               </div>
                             )}
                           </div>
@@ -3109,60 +3458,42 @@ export default function App() {
                               <div
                                 style={{
                                   display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "flex-end",
                                   gap: 6,
                                   flexShrink: 0,
                                 }}
                               >
-                                <div
-                                  onTouchStart={() => handleTouchStart(idx)}
+                                <button
+                                  onClick={() =>
+                                    setModal({ dayId: currentDay.id, item })
+                                  }
                                   style={{
-                                    cursor: "grab",
-                                    color: "#C9BFA8",
-                                    padding: "6px",
-                                    touchAction: "none",
+                                    border: "1px solid #E4DCC8",
+                                    background: "#fff",
+                                    color: "#5C5745",
+                                    borderRadius: 8,
+                                    padding: "5px 9px",
+                                    fontSize: 12,
                                   }}
-                                  title="按住拖曳順序"
                                 >
-                                  <GripVertical size={20} />
-                                </div>
-
-                                <div style={{ display: "flex", gap: 6 }}>
-                                  <button
-                                    onClick={() =>
-                                      setModal({ dayId: currentDay.id, item })
-                                    }
-                                    style={{
-                                      border: "1px solid #E4DCC8",
-                                      background: "#fff",
-                                      color: "#5C5745",
-                                      borderRadius: 8,
-                                      padding: "5px 9px",
-                                      fontSize: 12,
-                                    }}
-                                  >
-                                    編輯
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      removeItem(currentDay.id, item.id)
-                                    }
-                                    style={{
-                                      border: "none",
-                                      background: "transparent",
-                                      color: "#C1633D",
-                                      fontSize: 12,
-                                      padding: "5px 2px",
-                                    }}
-                                  >
-                                    刪除
-                                  </button>
-                                </div>
+                                  編輯
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    removeItem(currentDay.id, item.id)
+                                  }
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: "#C1633D",
+                                    fontSize: 12,
+                                    padding: "5px 2px",
+                                  }}
+                                >
+                                  刪除
+                                </button>
                               </div>
                             </div>
 
-                            {/* 修復穩定排版：起點與終點專屬樣式區塊 */}
                             {item.type === "transport" ? (
                               <div
                                 style={{
@@ -3213,7 +3544,11 @@ export default function App() {
                                           fontWeight: 500,
                                         }}
                                       >
-                                        <MapPin size={14} color="#3D6E8C" style={{ flexShrink: 0 }} />
+                                        <MapPin
+                                          size={14}
+                                          color="#3D6E8C"
+                                          style={{ flexShrink: 0 }}
+                                        />
                                         起點：{item.origin}
                                       </span>
                                       <ExternalLink
@@ -3255,7 +3590,11 @@ export default function App() {
                                           fontWeight: 500,
                                         }}
                                       >
-                                        <MapPin size={14} color="#C1633D" style={{ flexShrink: 0 }} />
+                                        <MapPin
+                                          size={14}
+                                          color="#C1633D"
+                                          style={{ flexShrink: 0 }}
+                                        />
                                         終點：{item.destination}
                                       </span>
                                       <ExternalLink
@@ -3291,8 +3630,13 @@ export default function App() {
                                       boxSizing: "border-box",
                                     }}
                                   >
-                                    <Navigation size={14} color="#1B382B" style={{ flexShrink: 0 }} />
-                                    開啟 Google Maps 路線導航（{item.origin} ➔ {item.destination}）
+                                    <Navigation
+                                      size={14}
+                                      color="#1B382B"
+                                      style={{ flexShrink: 0 }}
+                                    />
+                                    開啟 Google Maps 路線導航（{item.origin} ➔{" "}
+                                    {item.destination}）
                                   </a>
                                 )}
                               </div>
@@ -3325,7 +3669,11 @@ export default function App() {
                                     whiteSpace: "nowrap",
                                   }}
                                 >
-                                  <MapPin size={13} color="#8A8168" style={{ flexShrink: 0 }} />
+                                  <MapPin
+                                    size={13}
+                                    color="#8A8168"
+                                    style={{ flexShrink: 0 }}
+                                  />
                                   {item.place}
                                 </span>
                                 <span
