@@ -12,7 +12,6 @@ import {
   Navigation,
   Car,
   ShoppingBag,
-  Wallet,
   BookOpen,
   Edit3,
   CheckSquare,
@@ -128,15 +127,6 @@ const TYPE_CONFIG = {
     color: "#8A4F9E",
     bg: "#F1E7F5",
   },
-};
-
-const EXPENSE_CATEGORIES = {
-  food: { label: "飲食", color: "#B8862F", bg: "#FBF0DC" },
-  transport: { label: "交通", color: "#3D6E8C", bg: "#E4EEF4" },
-  stay: { label: "住宿", color: "#C1633D", bg: "#FBEAE1" },
-  shopping: { label: "購物", color: "#8A4F9E", bg: "#F1E7F5" },
-  ticket: { label: "門票", color: "#2F4538", bg: "#EAF0EA" },
-  other: { label: "其他", color: "#7A7360", bg: "#EFEAE0" },
 };
 
 const TODO_CATEGORIES = {
@@ -840,7 +830,6 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
         origin: "",
         destination: "",
         note: "",
-        stops: [],
         [field]: value,
       };
       setLiveItem(newItem);
@@ -1045,313 +1034,6 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
           }}
         >
           完成並儲存
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// --- Expenses View ---
-function ExpensesView({
-  expenses,
-  days,
-  totalExpense,
-  expenseByCategory,
-  onAdd,
-  onEdit,
-  onDelete,
-}) {
-  const dayLabel = (dayId) => {
-    const idx = days.findIndex((d) => d.id === dayId);
-    return idx >= 0 ? `Day ${idx + 1}` : "";
-  };
-
-  return (
-    <main
-      style={{
-        padding: "16px 16px 100px",
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          background: "#2F4538",
-          borderRadius: 14,
-          padding: "18px 18px",
-          marginBottom: 18,
-          color: "#F4EFE3",
-        }}
-      >
-        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 4 }}>
-          總花費
-        </div>
-        <div className="serif" style={{ fontSize: 32, fontWeight: 700 }}>
-          ${totalExpense.toLocaleString()}
-        </div>
-        {Object.keys(expenseByCategory).length > 0 && (
-          <div
-            style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}
-          >
-            {Object.entries(expenseByCategory).map(([cat, amt]) => (
-              <div
-                key={cat}
-                style={{
-                  fontSize: 11.5,
-                  background: "rgba(244,239,227,0.12)",
-                  borderRadius: 7,
-                  padding: "4px 9px",
-                  display: "flex",
-                  gap: 5,
-                }}
-              >
-                <span>{EXPENSE_CATEGORIES[cat]?.label || "其他"}</span>
-                <span style={{ fontWeight: 700 }}>${amt.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {expenses.map((e) => {
-          const cfg =
-            EXPENSE_CATEGORIES[e.category] || EXPENSE_CATEGORIES.other;
-          return (
-            <div
-              key={e.id}
-              className="card-enter"
-              style={{
-                background: "#fff",
-                border: "1px solid #ECE4D2",
-                borderRadius: 12,
-                padding: "14px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: 10,
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 4,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      color: cfg.color,
-                      background: cfg.bg,
-                      padding: "2px 8px",
-                      borderRadius: 6,
-                    }}
-                  >
-                    {cfg.label}
-                  </span>
-                  {e.dayId && (
-                    <span style={{ fontSize: 11.5, color: "#A69C82" }}>
-                      {dayLabel(e.dayId)}
-                    </span>
-                  )}
-                </div>
-                <div
-                  className="serif"
-                  style={{ fontSize: 16, fontWeight: 700, color: "#2B2822" }}
-                >
-                  {e.title || "（未命名項目）"}
-                </div>
-                {e.note && (
-                  <div style={{ fontSize: 13, color: "#7A7360", marginTop: 3 }}>
-                    {e.note}
-                  </div>
-                )}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: 8,
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  className="serif"
-                  style={{ fontSize: 17, fontWeight: 700, color: "#2F4538" }}
-                >
-                  ${(parseFloat(e.amount) || 0).toLocaleString()}
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    onClick={() => onEdit(e)}
-                    style={{
-                      border: "1px solid #E4DCC8",
-                      background: "#fff",
-                      color: "#5C5745",
-                      borderRadius: 8,
-                      padding: "6px 10px",
-                      fontSize: 12,
-                    }}
-                  >
-                    編輯
-                  </button>
-                  <button
-                    onClick={() => onDelete(e.id)}
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      color: "#C1633D",
-                      fontSize: 12,
-                      padding: "6px 4px",
-                    }}
-                  >
-                    刪除
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <button
-        onClick={onAdd}
-        style={{
-          marginTop: 14,
-          width: "100%",
-          padding: "14px",
-          borderRadius: 12,
-          border: "1.5px dashed #C9BFA8",
-          background: "transparent",
-          color: "#5C5745",
-          fontSize: 14,
-          fontWeight: 600,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 6,
-        }}
-      >
-        <Plus size={16} /> 新增花費紀錄
-      </button>
-    </main>
-  );
-}
-
-function ExpenseModal({ initial, days, onClose, onSave }) {
-  const [title, setTitle] = useState(initial?.title || "");
-  const [amount, setAmount] = useState(
-    initial?.amount != null ? String(initial.amount) : ""
-  );
-  const [category, setCategory] = useState(initial?.category || "food");
-  const [dayId, setDayId] = useState(
-    initial?.dayId || (days[0] ? days[0].id : "")
-  );
-  const [note, setNote] = useState(initial?.note || "");
-
-  function handleSave() {
-    if (!title.trim() || amount === "" || isNaN(parseFloat(amount))) return;
-    onSave({
-      id: initial?.id || uid(),
-      title: title.trim(),
-      amount: parseFloat(amount),
-      category,
-      dayId,
-      note: note.trim(),
-    });
-  }
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(43,40,34,0.45)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        zIndex: 120,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#FAF6EF",
-          width: "100%",
-          maxWidth: 640,
-          borderRadius: "20px 20px 0 0",
-          padding: "12px 20px calc(24px + env(safe-area-inset-bottom))",
-          maxHeight: "88vh",
-          overflowY: "auto",
-          boxSizing: "border-box",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
-          }}
-        >
-          <div
-            className="serif"
-            style={{ fontSize: 18, fontWeight: 700, color: "#2B2822" }}
-          >
-            {initial ? "編輯花費" : "新增花費紀錄"}
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "#8A8168",
-              padding: 4,
-            }}
-          >
-            <X size={22} />
-          </button>
-        </div>
-        <Field label="項目名稱">
-          <input
-            placeholder="例如：晚餐"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            style={inputStyle}
-          />
-        </Field>
-        <Field label="金額">
-          <input
-            type="number"
-            inputMode="decimal"
-            placeholder="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            style={inputStyle}
-          />
-        </Field>
-        <button
-          onClick={handleSave}
-          style={{
-            width: "100%",
-            marginTop: 8,
-            padding: "14px",
-            borderRadius: 12,
-            border: "none",
-            background: "#2F4538",
-            color: "#F4EFE3",
-            fontWeight: 700,
-            fontSize: 15,
-          }}
-        >
-          儲存
         </button>
       </div>
     </div>
@@ -2096,11 +1778,9 @@ export default function App() {
   const [todos, setTodos] = useState([]);
   const [editingTripName, setEditingTripName] = useState(false);
   const [days, setDays] = useState([]);
-  const [expenses, setExpenses] = useState([]);
   const [activeDay, setActiveDay] = useState(null);
   const [view, setView] = useState("home");
   const [modal, setModal] = useState(null);
-  const [expenseModal, setExpenseModal] = useState(null);
   const [loaded, setLoaded] = useState(false);
   const [confirmDeleteDayId, setConfirmDeleteDayId] = useState(null);
   const [syncError, setSyncError] = useState("");
@@ -2130,7 +1810,6 @@ export default function App() {
           items: d.items || [],
         }));
         setDays(sortedDays);
-        setExpenses(data.expenses || []);
 
         if (sortedDays && sortedDays.length > 0) {
           setActiveDay((prev) => {
@@ -2450,7 +2129,6 @@ export default function App() {
             { id: "home", label: "首頁", icon: Home },
             { id: "itinerary", label: "行程", icon: Calendar },
             { id: "checklist", label: "清單", icon: CheckSquare },
-            { id: "expenses", label: "記帳", icon: Wallet },
             { id: "notebook", label: "記事本", icon: BookOpen },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -3212,30 +2890,6 @@ export default function App() {
               )}
             </main>
           )}
-
-          {view === "expenses" && (
-            <ExpensesView
-              expenses={expenses}
-              days={days}
-              totalExpense={expenses.reduce(
-                (sum, e) => sum + (parseFloat(e.amount) || 0),
-                0
-              )}
-              expenseByCategory={expenses.reduce((acc, e) => {
-                acc[e.category || "other"] =
-                  (acc[e.category || "other"] || 0) +
-                  (parseFloat(e.amount) || 0);
-                return acc;
-              }, {})}
-              onAdd={() => setExpenseModal({})}
-              onEdit={(expense) => setExpenseModal({ expense })}
-              onDelete={(id) => {
-                const next = expenses.filter((x) => x.id !== id);
-                setExpenses(next);
-                syncGeneralToFirebase({ expenses: next });
-              }}
-            />
-          )}
           {view === "notebook" && (
             <NotebookView
               notes={notes}
@@ -3273,22 +2927,6 @@ export default function App() {
           onFieldChange={(itemId, field, value) =>
             updateItemField(modal.dayId, itemId, field, value)
           }
-        />
-      )}
-      {expenseModal && (
-        <ExpenseModal
-          key={expenseModal.expense ? expenseModal.expense.id : "new-expense"}
-          initial={expenseModal.expense}
-          days={days}
-          onClose={() => setExpenseModal(null)}
-          onSave={(exp) => {
-            const next = expenses.some((e) => e.id === exp.id)
-              ? expenses.map((e) => (e.id === exp.id ? exp : e))
-              : [...expenses, exp];
-            setExpenses(next);
-            setExpenseModal(null);
-            syncGeneralToFirebase({ expenses: next });
-          }}
         />
       )}
     </div>
