@@ -238,6 +238,51 @@ const inputStyle = {
   boxSizing: "border-box",
 };
 
+// 各分頁 <main> 共用的外層 padding，避免同一組樣式在四個地方各寫一次
+const pageStyle = {
+  padding: "16px 16px 100px",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+// 白底卡片共用樣式（記事本／清單／單一行程卡片都用得到）
+const cardStyle = {
+  background: "#fff",
+  border: "1px solid #ECE4D2",
+  borderRadius: 14,
+  padding: "18px",
+};
+
+// 「開啟地圖」連結共用樣式 + 元件：把 Google Maps 搜尋連結的重複 JSX 收斂成一個小元件
+function MapLink({ place, label, color = "#2F4538", onClick, style }) {
+  if (!place) return null;
+  return (
+    <a
+      href={mapsUrl(place)}
+      target="_blank"
+      rel="noreferrer"
+      onClick={onClick}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        fontSize: 12,
+        color,
+        fontWeight: 600,
+        textDecoration: "none",
+        ...style,
+      }}
+    >
+      {label || (
+        <>
+          <MapPin size={13} color="#8A8168" /> {place}
+        </>
+      )}
+      <ExternalLink size={12} />
+    </a>
+  );
+}
+
 function Field({ label, children }) {
   return (
     <div style={{ marginBottom: 14 }}>
@@ -257,7 +302,60 @@ function Field({ label, children }) {
 }
 
 // --- Countdown Component ---
-function CountdownTimer() {
+// 煙火特效：以純 CSS 動畫呈現，每個 FireworkBurst 由多個 spark（火花）
+// 以 --fw-angle 這個 CSS 自訂屬性沿放射狀方向飛出並淡出
+const FIREWORK_COLORS = [
+  "#FF6B6B",
+  "#FFD93D",
+  "#6BCB77",
+  "#4D96FF",
+  "#FF6FCF",
+  "#FFA94D",
+];
+
+function FireworkBurst({ top, left, color, delay }) {
+  const sparkAngles = Array.from({ length: 10 }, (_, i) => i * 36);
+  return (
+    <div style={{ position: "absolute", top, left, width: 0, height: 0 }}>
+      {sparkAngles.map((angle) => (
+        <span
+          key={angle}
+          className="fw-spark"
+          style={{
+            "--fw-angle": `${angle}deg`,
+            "--fw-color": color,
+            animationDelay: delay,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Fireworks() {
+  const bursts = [
+    { top: "8%", left: "18%", color: FIREWORK_COLORS[0], delay: "0s" },
+    { top: "4%", left: "58%", color: FIREWORK_COLORS[1], delay: "0.5s" },
+    { top: "18%", left: "82%", color: FIREWORK_COLORS[2], delay: "1s" },
+    { top: "14%", left: "38%", color: FIREWORK_COLORS[3], delay: "1.5s" },
+  ];
+  return (
+    <div
+      style={{ position: "relative", height: 62, marginBottom: 4 }}
+      aria-hidden="true"
+    >
+      {bursts.map((b, i) => (
+        <FireworkBurst key={i} {...b} />
+      ))}
+    </div>
+  );
+}
+
+// startDateISO：行程第一天日期（"YYYY-MM-DD"），用來算倒數目標與現在是第幾天
+// totalDays：行程總天數，用來把「第幾天」限制在合理範圍內
+function CountdownTimer({ startDateISO, totalDays }) {
+  const tripStartISO = startDateISO || "2026-08-15";
+
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
@@ -267,7 +365,7 @@ function CountdownTimer() {
   });
 
   useEffect(() => {
-    const targetDate = new Date("2026-08-15T06:52:00").getTime();
+    const targetDate = new Date(`${tripStartISO}T06:52:00`).getTime();
     const calculateTime = () => {
       const now = new Date().getTime();
       const difference = targetDate - now;
@@ -292,7 +390,18 @@ function CountdownTimer() {
     calculateTime();
     const timer = setInterval(calculateTime, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [tripStartISO]);
+
+  // 旅程第幾天：以「日期」（非精確時間）比較，午夜就會跳到下一天
+  const tripStartMidnight = new Date(`${tripStartISO}T00:00:00`);
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const rawDayNumber =
+    Math.round((todayMidnight - tripStartMidnight) / (1000 * 60 * 60 * 24)) + 1;
+  const dayNumber = Math.max(
+    1,
+    totalDays ? Math.min(rawDayNumber, totalDays) : rawDayNumber
+  );
 
   return (
     <div
@@ -314,15 +423,21 @@ function CountdownTimer() {
           fontWeight: 600,
         }}
       >
-        ✈ 出發倒數 (2026/08/15 06:52)
+        ✈ 出發倒數
       </div>
       {timeLeft.isFinished ? (
-        <div
-          className="serif"
-          style={{ fontSize: 20, fontWeight: 700, color: "#90deb0" }}
-        >
-          🎉 旅程已經展開，祝您旅途愉快！
-        </div>
+        <>
+          <Fireworks />
+          <div
+            className="serif"
+            style={{ fontSize: 20, fontWeight: 700, color: "#90deb0" }}
+          >
+            🎉 旅程已經展開，祝您旅途愉快！
+          </div>
+          <div style={{ fontSize: 13.5, opacity: 0.85, marginTop: 4 }}>
+            現在是旅程第 {dayNumber} 天{totalDays ? `／共 ${totalDays} 天` : ""}
+          </div>
+        </>
       ) : (
         <div
           style={{ display: "flex", gap: 8, justifyContent: "space-between" }}
@@ -455,14 +570,8 @@ function HomeView({
   const WeatherIcon = weatherData.iconComponent || Sun;
 
   return (
-    <main
-      style={{
-        padding: "16px 16px 100px",
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      <CountdownTimer />
+    <main style={pageStyle}>
+      <CountdownTimer startDateISO={days[0]?.date} totalDays={days.length} />
 
       <div
         style={{
@@ -997,11 +1106,47 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
                 style={inputStyle}
               />
             </Field>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 14,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={!!liveItem?.needsTicket}
+                onChange={(e) =>
+                  ensureCreatedThenSet("needsTicket", e.target.checked)
+                }
+                style={{ width: 18, height: 18, accentColor: "#D4A017" }}
+              />
+              <span
+                style={{ fontSize: 13.5, color: "#5C5745", fontWeight: 600 }}
+              >
+                需買票
+              </span>
+            </label>
           </>
         ) : (
-          <Field label="地點（用於 Google Maps 搜尋）">
+          <Field
+            label={
+              {
+                shopping: "購物地點（用於 Google Maps 搜尋）",
+                food: "餐廳地點（用於 Google Maps 搜尋）",
+                stay: "住宿地點（用於 Google Maps 搜尋）",
+                spot: "景點地點（用於 Google Maps 搜尋）",
+              }[type] || "地點（用於 Google Maps 搜尋）"
+            }
+          >
             <input
-              placeholder="例如：清水寺 京都"
+              placeholder={
+                type === "shopping"
+                  ? "例如：三越百貨 名古屋店"
+                  : "例如：清水寺 京都"
+              }
               value={liveItem?.place || ""}
               onChange={(e) => ensureCreatedThenSet("place", e.target.value)}
               style={inputStyle}
@@ -1043,21 +1188,8 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
 // --- Notebook View ---
 function NotebookView({ notes, onChangeNote, onSaveNow }) {
   return (
-    <main
-      style={{
-        padding: "16px 16px 100px",
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #ECE4D2",
-          borderRadius: 14,
-          padding: "18px",
-        }}
-      >
+    <main style={pageStyle}>
+      <div style={cardStyle}>
         <div
           style={{
             display: "flex",
@@ -1103,6 +1235,7 @@ function NotebookView({ notes, onChangeNote, onSaveNow }) {
 function ChecklistView({ todos = [], setTodos, onSaveNow }) {
   const [inputText, setInputText] = useState("");
   const [inputNote, setInputNote] = useState("");
+  const [inputPlace, setInputPlace] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("important");
   const [selectedOwner, setSelectedOwner] = useState("moomin");
   const [filterCategory, setFilterCategory] = useState("all");
@@ -1110,8 +1243,12 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState("");
   const [editingNote, setEditingNote] = useState("");
+  const [editingPlace, setEditingPlace] = useState("");
   const [editingCategory, setEditingCategory] = useState("important");
   const [editingOwner, setEditingOwner] = useState("moomin");
+
+  // 只有「食物」跟「要買」這兩個類別會顯示地點欄位（可連結 Google Maps）
+  const PLACE_ENABLED_CATEGORIES = ["food", "toBuy"];
 
   // FIX: build the object without ever assigning `owner: undefined`.
   // Firestore's setDoc() throws when any field is literally `undefined`,
@@ -1126,11 +1263,16 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
       category: selectedCategory,
       completed: false,
       ...(selectedCategory === "luggage" ? { owner: selectedOwner } : {}),
+      ...(PLACE_ENABLED_CATEGORIES.includes(selectedCategory) &&
+      inputPlace.trim()
+        ? { place: inputPlace.trim() }
+        : {}),
     };
     const updated = [...todos, newTodo];
     setTodos(updated);
     setInputText("");
     setInputNote("");
+    setInputPlace("");
     onSaveNow(updated);
   };
 
@@ -1153,12 +1295,14 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
     setEditingId(todo.id);
     setEditingText(todo.text || "");
     setEditingNote(todo.note || "");
+    setEditingPlace(todo.place || "");
     setEditingCategory(todo.category || "important");
     setEditingOwner(todo.owner || "moomin");
   };
 
   // FIX: same undefined-field problem as addTodo. For non-luggage items we now
-  // delete the `owner` key entirely instead of setting it to undefined.
+  // delete the `owner` key entirely instead of setting it to undefined; same
+  // treatment for `place` on categories that don't support it.
   const saveEdit = (id) => {
     if (!editingText.trim()) return;
     const updated = todos.map((t) => {
@@ -1174,12 +1318,21 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
       } else {
         delete next.owner;
       }
+      if (
+        PLACE_ENABLED_CATEGORIES.includes(editingCategory) &&
+        editingPlace.trim()
+      ) {
+        next.place = editingPlace.trim();
+      } else {
+        delete next.place;
+      }
       return next;
     });
     setTodos(updated);
     setEditingId(null);
     setEditingText("");
     setEditingNote("");
+    setEditingPlace("");
     onSaveNow(updated);
   };
 
@@ -1194,21 +1347,8 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
   };
 
   return (
-    <main
-      style={{
-        padding: "16px 16px 100px",
-        width: "100%",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #ECE4D2",
-          borderRadius: 14,
-          padding: "18px",
-        }}
-      >
+    <main style={pageStyle}>
+      <div style={cardStyle}>
         <div
           style={{
             display: "flex",
@@ -1328,6 +1468,14 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
             placeholder="新增備註（選填）"
             style={{ ...inputStyle, fontSize: 13.5, padding: "8px 12px" }}
           />
+          {PLACE_ENABLED_CATEGORIES.includes(selectedCategory) && (
+            <input
+              value={inputPlace}
+              onChange={(e) => setInputPlace(e.target.value)}
+              placeholder="地點（選填，用於 Google Maps 搜尋，如：一蘭拉麵 名古屋店）"
+              style={{ ...inputStyle, fontSize: 13.5, padding: "8px 12px" }}
+            />
+          )}
 
           <div
             style={{
@@ -1559,6 +1707,22 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
                                   fontSize: 12.5,
                                 }}
                               />
+                              {PLACE_ENABLED_CATEGORIES.includes(
+                                editingCategory
+                              ) && (
+                                <input
+                                  value={editingPlace}
+                                  onChange={(e) =>
+                                    setEditingPlace(e.target.value)
+                                  }
+                                  placeholder="地點（選填，用於 Google Maps 搜尋）"
+                                  style={{
+                                    ...inputStyle,
+                                    padding: "4px 8px",
+                                    fontSize: 12.5,
+                                  }}
+                                />
+                              )}
                               {editingCategory === "luggage" && (
                                 <div style={{ display: "flex", gap: 4 }}>
                                   <button
@@ -1699,6 +1863,19 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
                                 >
                                   📝 {todo.note}
                                 </div>
+                              )}
+                              {todo.place && (
+                                <MapLink
+                                  place={todo.place}
+                                  onClick={(e) => e.stopPropagation()}
+                                  color={todo.completed ? "#B5AC98" : "#2F4538"}
+                                  label={
+                                    <>
+                                      <MapPin size={12} /> {todo.place}
+                                    </>
+                                  }
+                                  style={{ fontSize: 12.5 }}
+                                />
                               )}
                             </div>
                           )}
@@ -2038,6 +2215,23 @@ export default function App() {
         @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .app-container { display: flex; flex-direction: column; width: 100%; max-width: 1024px; margin: 0 auto; }
         .top-nav { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 8px; border-bottom: 1px solid #ECE4D2; background: #FAF6EF; }
+        .fw-spark {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: var(--fw-color);
+          box-shadow: 0 0 6px 1px var(--fw-color);
+          opacity: 0;
+          animation: fw-pop 1.6s ease-out infinite;
+        }
+        @keyframes fw-pop {
+          0% { transform: rotate(var(--fw-angle)) translateY(0); opacity: 1; }
+          70% { opacity: 1; }
+          100% { transform: rotate(var(--fw-angle)) translateY(-34px); opacity: 0; }
+        }
       `}</style>
 
       {/* Header */}
@@ -2172,13 +2366,7 @@ export default function App() {
           )}
 
           {view === "itinerary" && (
-            <main
-              style={{
-                padding: "16px 16px 100px",
-                width: "100%",
-                boxSizing: "border-box",
-              }}
-            >
+            <main style={pageStyle}>
               <div
                 className="scrollbar-thin"
                 style={{
@@ -2326,26 +2514,16 @@ export default function App() {
                         />
                       </div>
                       {currentDay.startPoint && (
-                        <a
-                          href={mapsUrl(currentDay.startPoint)}
-                          target="_blank"
-                          rel="noreferrer"
+                        <MapLink
+                          place={currentDay.startPoint}
+                          label="開啟地圖"
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 3,
-                            fontSize: 12,
-                            color: "#2F4538",
-                            fontWeight: 600,
-                            textDecoration: "none",
                             background: "#EAF0EA",
                             padding: "4px 8px",
                             borderRadius: 6,
                             flexShrink: 0,
                           }}
-                        >
-                          開啟地圖 <ExternalLink size={12} />
-                        </a>
+                        />
                       )}
                     </div>
 
@@ -2551,6 +2729,30 @@ export default function App() {
                                         : item.time}
                                     </span>
                                   )}
+                                  {item.type === "transport" &&
+                                    item.needsTicket && (
+                                      <span
+                                        title="需買票"
+                                        style={{
+                                          fontSize: 12,
+                                          fontWeight: 700,
+                                          color: "#8A6300",
+                                          background: "#FFF3CD",
+                                          border: "1px solid #F0D468",
+                                          padding: "2px 8px",
+                                          borderRadius: 6,
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 4,
+                                        }}
+                                      >
+                                        <AlertCircle
+                                          size={13}
+                                          color="#D4A017"
+                                        />
+                                        需買票
+                                      </span>
+                                    )}
                                 </div>
                                 <div
                                   className="serif"
