@@ -81,10 +81,15 @@ function mapsUrl(place) {
   )}`;
 }
 
-function routeUrl(from, to) {
+function routeUrl(from, to, waypoints = []) {
+  const stopParams = (waypoints || []).filter(Boolean);
+  const waypointsParam =
+    stopParams.length > 0
+      ? `&waypoints=${stopParams.map((w) => encodeURIComponent(w)).join("|")}`
+      : "";
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
     from
-  )}&destination=${encodeURIComponent(to)}&travelmode=transit`;
+  )}&destination=${encodeURIComponent(to)}${waypointsParam}&travelmode=transit`;
 }
 
 function todayISO() {
@@ -97,15 +102,6 @@ function fmtDateLabel(iso) {
   const weekdays = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
   return `${d.getMonth() + 1}月${d.getDate()}日 ${weekdays[d.getDay()]}`;
 }
-
-const CITY_COORDS = {
-  taoyuan: { name: "桃園", lat: 24.993, lon: 121.301 },
-  osaka: { name: "大阪", lat: 34.693, lon: 135.502 },
-  nagoya: { name: "名古屋", lat: 35.181, lon: 136.906 },
-  takayama: { name: "高山", lat: 36.14, lon: 137.251 },
-  hida: { name: "飛騨", lat: 36.236, lon: 137.185 },
-  kamikochi: { name: "上高地", lat: 36.248, lon: 137.637 },
-};
 
 function parseWmoCode(code) {
   if (code === 0) return { cond: "晴朗", icon: Sun };
@@ -840,27 +836,119 @@ function HomeView({
   tripName,
   days,
   coverImage,
+  country,
+  weatherCities,
+  onUpdateWeatherCities,
   onUpdateCoverImage,
   onNavigate,
 }) {
   const [editingPhoto, setEditingPhoto] = useState(false);
   const [photoInput, setPhotoInput] = useState(coverImage || "");
-  const [selectedCity, setSelectedCity] = useState("nagoya");
+
+  // 天氣：可以加入多個城市選項並儲存在旅程資料裡（不再只能選一個、也不會重開又消失）
+  const [showCityPicker, setShowCityPicker] = useState(false);
+  const [cityQuery, setCityQuery] = useState("");
+  const [citySearching, setCitySearching] = useState(false);
+  const [cityResults, setCityResults] = useState([]);
+  const [activeCityId, setActiveCityId] = useState(
+    weatherCities[0]?.id || null
+  );
   const [weatherData, setWeatherData] = useState({
     temp: "--",
-    cond: "載入中…",
+    cond: "尚未選擇城市",
     humidity: "--",
     iconComponent: Sun,
     hourly: [],
-    loading: true,
+    loading: false,
   });
 
+  const activeCity = weatherCities.find((c) => c.id === activeCityId) || null;
+
+  const searchCity = (query) => {
+    const q = query.trim();
+    if (!q) return;
+    setCitySearching(true);
+    fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+        q
+      )}&count=10&language=zh-Hant&format=json`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        const results = (data?.results || []).map((r) => ({
+          name: [r.name, r.admin1, r.country]
+            .filter((v, i, arr) => v && arr.indexOf(v) === i)
+            .join(" · "),
+          lat: r.latitude,
+          lon: r.longitude,
+        }));
+        setCityResults(results);
+      })
+      .catch(() => setCityResults([]))
+      .finally(() => setCitySearching(false));
+  };
+
+  const addCity = (result) => {
+    const newCity = { id: uid(), ...result };
+    const nextCities = [...weatherCities, newCity];
+    onUpdateWeatherCities(nextCities);
+    setActiveCityId(newCity.id);
+    setShowCityPicker(false);
+    setCityResults([]);
+    setCityQuery("");
+  };
+
+  const removeCity = (id) => {
+    const nextCities = weatherCities.filter((c) => c.id !== id);
+    onUpdateWeatherCities(nextCities);
+    if (activeCityId === id) {
+      setActiveCityId(nextCities[0]?.id || null);
+    }
+  };
+
+  // 每趟旅程第一次進首頁、且尚未儲存任何城市時，依旅程的國家/地區自動搜尋並加入一個預設城市
   useEffect(() => {
+    if (weatherCities.length > 0) return;
+    const seed = (country || "").trim() || "東京";
+    setCitySearching(true);
+    fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+        seed
+      )}&count=1&language=zh-Hant&format=json`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        const r = data?.results?.[0];
+        if (r) {
+          const newCity = {
+            id: uid(),
+            name: [r.name, r.admin1, r.country]
+              .filter((v, i, arr) => v && arr.indexOf(v) === i)
+              .join(" · "),
+            lat: r.latitude,
+            lon: r.longitude,
+          };
+          onUpdateWeatherCities([newCity]);
+          setActiveCityId(newCity.id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setCitySearching(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!activeCityId && weatherCities[0]) {
+      setActiveCityId(weatherCities[0].id);
+    }
+  }, [weatherCities, activeCityId]);
+
+  useEffect(() => {
+    if (!activeCity) return;
     let isMounted = true;
-    const city = CITY_COORDS[selectedCity] || CITY_COORDS.nagoya;
     setWeatherData((prev) => ({ ...prev, loading: true }));
     fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,relative_humidity_2m,weather_code&hourly=temperature_2m,weather_code&forecast_days=1&timezone=auto`
+      `https://api.open-meteo.com/v1/forecast?latitude=${activeCity.lat}&longitude=${activeCity.lon}&current=temperature_2m,relative_humidity_2m,weather_code&hourly=temperature_2m,weather_code&forecast_days=1&timezone=auto`
     )
       .then((res) => res.json())
       .then((data) => {
@@ -912,7 +1000,7 @@ function HomeView({
     return () => {
       isMounted = false;
     };
-  }, [selectedCity]);
+  }, [activeCity]);
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -967,11 +1055,32 @@ function HomeView({
           marginBottom: 16,
         }}
       >
-        <img
-          src={coverImage || SAMPLE_TRIP.coverImage}
-          alt="Trip Cover"
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
+        {coverImage ? (
+          <img
+            src={coverImage}
+            alt="Trip Cover"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              background: "#EAF0EA",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              color: "#8AA08D",
+            }}
+          >
+            <ImageIcon size={32} />
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>
+              尚未設定封面照片
+            </div>
+          </div>
+        )}
         <div
           style={{
             position: "absolute",
@@ -1172,9 +1281,8 @@ function HomeView({
               即時氣溫與今日天氣預報{" "}
               {weatherData.loading && <RefreshCw size={12} className="spin" />}
             </div>
-            <select
-              value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
+            <button
+              onClick={() => setShowCityPicker((v) => !v)}
               style={{
                 border: "1px solid #E4DCC8",
                 borderRadius: 6,
@@ -1182,16 +1290,139 @@ function HomeView({
                 fontSize: 12,
                 color: "#5C5745",
                 background: "#FAF6EF",
-                outline: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
               }}
             >
-              {Object.entries(CITY_COORDS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v.name}
-                </option>
-              ))}
-            </select>
+              <Plus size={12} /> 新增城市
+            </button>
           </div>
+
+          {weatherCities.length > 0 && (
+            <div
+              className="scrollbar-thin"
+              style={{
+                display: "flex",
+                gap: 6,
+                overflowX: "auto",
+                marginBottom: 10,
+              }}
+            >
+              {weatherCities.map((c) => {
+                const active = c.id === activeCityId;
+                return (
+                  <div
+                    key={c.id}
+                    style={{
+                      flex: "0 0 auto",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      border: active
+                        ? "1.5px solid #2F4538"
+                        : "1px solid #E4DCC8",
+                      background: active ? "#2F4538" : "#FAF6EF",
+                      color: active ? "#F4EFE3" : "#5C5745",
+                      borderRadius: 8,
+                      padding: "5px 6px 5px 10px",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span
+                      onClick={() => setActiveCityId(c.id)}
+                      style={{ cursor: "pointer", whiteSpace: "nowrap" }}
+                    >
+                      {c.name.split(" · ")[0]}
+                    </span>
+                    <button
+                      onClick={() => removeCity(c.id)}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        color: active ? "#F4EFE3" : "#B5AC98",
+                        padding: 2,
+                        display: "flex",
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {showCityPicker && (
+            <div
+              style={{
+                background: "#FAF6EF",
+                border: "1px solid #E4DCC8",
+                borderRadius: 10,
+                padding: 10,
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  value={cityQuery}
+                  onChange={(e) => setCityQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && searchCity(cityQuery)}
+                  placeholder="輸入城市名稱，如：Rome、高雄、Chiang Mai"
+                  style={{ ...inputStyle, padding: "8px 10px", fontSize: 13.5 }}
+                />
+                <button
+                  onClick={() => searchCity(cityQuery)}
+                  style={{
+                    flexShrink: 0,
+                    border: "none",
+                    background: "#2F4538",
+                    color: "#fff",
+                    borderRadius: 8,
+                    padding: "0 14px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  {citySearching ? "…" : "搜尋"}
+                </button>
+              </div>
+              {cityResults.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                  }}
+                >
+                  {cityResults.map((r, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => addCity(r)}
+                      style={{
+                        textAlign: "left",
+                        border: "none",
+                        background: "#fff",
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                        fontSize: 13,
+                        color: "#2B2822",
+                      }}
+                    >
+                      <MapPin
+                        size={12}
+                        color="#8A8168"
+                        style={{ marginRight: 4 }}
+                      />
+                      {r.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div
             style={{
               display: "flex",
@@ -1214,7 +1445,7 @@ function HomeView({
               </div>
             </div>
             <div style={{ textAlign: "right", fontSize: 12, color: "#8A8168" }}>
-              <div>{CITY_COORDS[selectedCity]?.name}</div>
+              <div>{activeCity ? activeCity.name.split(" · ")[0] : "--"}</div>
               <div style={{ color: "#2F4538", fontWeight: 600 }}>
                 即時連線 🌐
               </div>
@@ -1355,6 +1586,7 @@ function HomeView({
 // --- Item Modal ---
 function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
   const [liveItem, setLiveItem] = useState(initial || null);
+  const [stopInput, setStopInput] = useState("");
 
   function ensureCreatedThenSet(field, value) {
     if (liveItem) {
@@ -1371,12 +1603,26 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
         place: "",
         origin: "",
         destination: "",
+        stops: [],
         note: "",
         [field]: value,
       };
       setLiveItem(newItem);
       onCreate(newItem);
     }
+  }
+
+  function addStop() {
+    const text = stopInput.trim();
+    if (!text) return;
+    const nextStops = [...(liveItem?.stops || []), text];
+    ensureCreatedThenSet("stops", nextStops);
+    setStopInput("");
+  }
+
+  function removeStop(idx) {
+    const nextStops = (liveItem?.stops || []).filter((_, i) => i !== idx);
+    ensureCreatedThenSet("stops", nextStops);
   }
 
   const type = liveItem?.type || "spot";
@@ -1538,6 +1784,76 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
                 }
                 style={inputStyle}
               />
+            </Field>
+            <Field label="停靠點（選填，可新增多個，會同步到 Google Maps 路線）">
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <input
+                  value={stopInput}
+                  onChange={(e) => setStopInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addStop()}
+                  placeholder="例如：名古屋車站"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  onClick={addStop}
+                  style={{
+                    flexShrink: 0,
+                    padding: "0 16px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: "#3D6E8C",
+                    color: "#fff",
+                    fontWeight: 600,
+                    fontSize: 13.5,
+                  }}
+                >
+                  新增
+                </button>
+              </div>
+              {(liveItem?.stops || []).length > 0 && (
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
+                >
+                  {liveItem.stops.map((stop, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        background: "#E4EEF4",
+                        borderRadius: 8,
+                        padding: "7px 10px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 13,
+                          color: "#3D6E8C",
+                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                        }}
+                      >
+                        <MapPin size={12} /> {idx + 1}. {stop}
+                      </span>
+                      <button
+                        onClick={() => removeStop(idx)}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          color: "#3D6E8C",
+                          padding: 2,
+                          display: "flex",
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Field>
             <label
               style={{
@@ -2389,6 +2705,8 @@ export default function App() {
 
   // 目前開啟的這趟旅程的資料
   const [tripName, setTripName] = useState("");
+  const [tripCountry, setTripCountry] = useState("");
+  const [weatherCities, setWeatherCities] = useState([]);
   const [coverImage, setCoverImage] = useState("");
   const [notes, setNotes] = useState("");
   const [todos, setTodos] = useState([]);
@@ -2423,6 +2741,10 @@ export default function App() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setTripName(data.tripName || "未命名旅程");
+        setTripCountry(data.country || "");
+        setWeatherCities(
+          Array.isArray(data.weatherCities) ? data.weatherCities : []
+        );
         setCoverImage(data.coverImage || "");
         setNotes(data.notes || "");
 
@@ -2455,6 +2777,8 @@ export default function App() {
       } else {
         // 理論上不會發生（旅程一定是先建立才會被選取），保險起見重置成空白狀態
         setTripName("未命名旅程");
+        setTripCountry("");
+        setWeatherCities([]);
         setCoverImage("");
         setNotes("");
         setTodos([]);
@@ -2802,6 +3126,12 @@ export default function App() {
               tripName={tripName}
               days={days}
               coverImage={coverImage}
+              country={tripCountry}
+              weatherCities={weatherCities}
+              onUpdateWeatherCities={(cities) => {
+                setWeatherCities(cities);
+                syncGeneralToFirebase({ weatherCities: cities });
+              }}
               onUpdateCoverImage={(url) => {
                 setCoverImage(url);
                 syncGeneralToFirebase({ coverImage: url });
@@ -3366,11 +3696,59 @@ export default function App() {
                                   )}
                                 </div>
 
+                                {item.stops && item.stops.length > 0 && (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: 4,
+                                    }}
+                                  >
+                                    {item.stops.map((stop, sIdx) => (
+                                      <a
+                                        key={sIdx}
+                                        href={mapsUrl(stop)}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "space-between",
+                                          textDecoration: "none",
+                                          background: "#E4EEF4",
+                                          border: "1px dashed #B9D2E0",
+                                          borderRadius: 8,
+                                          padding: "6px 10px",
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            fontSize: 12,
+                                            color: "#3D6E8C",
+                                            fontWeight: 600,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 5,
+                                          }}
+                                        >
+                                          <MapPin size={12} /> 停靠 {sIdx + 1}：
+                                          {stop}
+                                        </span>
+                                        <ExternalLink
+                                          size={11}
+                                          color="#3D6E8C"
+                                        />
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+
                                 {item.origin && item.destination && (
                                   <a
                                     href={routeUrl(
                                       item.origin,
-                                      item.destination
+                                      item.destination,
+                                      item.stops
                                     )}
                                     target="_blank"
                                     rel="noreferrer"
@@ -3396,6 +3774,9 @@ export default function App() {
                                       style={{ flexShrink: 0 }}
                                     />{" "}
                                     開啟 Google Maps 路線導航（{item.origin} ➔{" "}
+                                    {item.stops && item.stops.length > 0
+                                      ? `${item.stops.length} 個停靠點 ➔ `
+                                      : ""}
                                     {item.destination}）
                                   </a>
                                 )}
