@@ -36,14 +36,7 @@ import {
 
 // --- 1. Firebase 初始化 ---
 import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  deleteDoc,
-  collection,
-  onSnapshot,
-} from "firebase/firestore";
+import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDgx9WhUA6HnhE8SVNoNuE4G98eEbseMHc",
@@ -363,10 +356,7 @@ function LoadingScreen({ text = "雲端同步載入中…" }) {
           <div className="petal petal-5" />
         </div>
       </div>
-      <div
-        className="serif"
-        style={{ fontSize: 16, fontWeight: 700, color: "#2F4538" }}
-      >
+      <div className="serif" style={{ fontSize: 16, fontWeight: 700, color: "#2F4538" }}>
         {text}
       </div>
     </div>
@@ -390,17 +380,10 @@ function TripListScreen({ tripList, onSelect, onCreate, onDelete }) {
 
   return (
     <div style={{ background: "#FAF6EF", minHeight: "100vh" }}>
-      <div
-        style={{ maxWidth: 640, margin: "0 auto", padding: "28px 16px 60px" }}
-      >
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "28px 16px 60px" }}>
         <div
           className="serif"
-          style={{
-            fontSize: 24,
-            fontWeight: 700,
-            color: "#2F4538",
-            marginBottom: 4,
-          }}
+          style={{ fontSize: 24, fontWeight: 700, color: "#2F4538", marginBottom: 4 }}
         >
           我的旅程
         </div>
@@ -408,23 +391,11 @@ function TripListScreen({ tripList, onSelect, onCreate, onDelete }) {
           選擇一個旅程繼續規劃，或新增一趟新的旅程
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            marginBottom: 16,
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
           {tripList.map((trip) => (
             <div
               key={trip.id}
-              style={{
-                ...cardStyle,
-                padding: 0,
-                display: "flex",
-                alignItems: "stretch",
-              }}
+              style={{ ...cardStyle, padding: 0, display: "flex", alignItems: "stretch" }}
             >
               <div
                 onClick={() => onSelect(trip.id)}
@@ -455,11 +426,7 @@ function TripListScreen({ tripList, onSelect, onCreate, onDelete }) {
                     <img
                       src={trip.coverImage}
                       alt=""
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
                   ) : (
                     <MapPin size={22} color="#8A4F9E" />
@@ -493,14 +460,7 @@ function TripListScreen({ tripList, onSelect, onCreate, onDelete }) {
             </div>
           ))}
           {tripList.length === 0 && (
-            <div
-              style={{
-                fontSize: 13,
-                color: "#8A8168",
-                textAlign: "center",
-                padding: "20px 0",
-              }}
-            >
+            <div style={{ fontSize: 13, color: "#8A8168", textAlign: "center", padding: "20px 0" }}>
               目前還沒有任何旅程，新增第一趟吧！
             </div>
           )}
@@ -508,17 +468,8 @@ function TripListScreen({ tripList, onSelect, onCreate, onDelete }) {
 
         {confirmDeleteId && (
           <div style={{ ...cardStyle, marginBottom: 16 }}>
-            <div
-              style={{
-                fontSize: 13.5,
-                color: "#C1633D",
-                fontWeight: 600,
-                marginBottom: 10,
-              }}
-            >
-              確定要刪除「
-              {tripList.find((t) => t.id === confirmDeleteId)?.tripName ||
-                "此旅程"}
+            <div style={{ fontSize: 13.5, color: "#C1633D", fontWeight: 600, marginBottom: 10 }}>
+              確定要刪除「{tripList.find((t) => t.id === confirmDeleteId)?.tripName || "此旅程"}
               」嗎？此動作無法復原。
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -660,14 +611,7 @@ function Field({ label, children }) {
 // --- Countdown Component ---
 // 煙火特效：以純 CSS 動畫呈現，每個 FireworkBurst 由多個 spark（火花）
 // 以 --fw-angle 這個 CSS 自訂屬性沿放射狀方向飛出並淡出
-const FIREWORK_COLORS = [
-  "#FF6B6B",
-  "#FFD93D",
-  "#6BCB77",
-  "#4D96FF",
-  "#FF6FCF",
-  "#FFA94D",
-];
+const FIREWORK_COLORS = ["#FF6B6B", "#FFD93D", "#6BCB77", "#4D96FF", "#FF6FCF", "#FFA94D"];
 
 function FireworkBurst({ top, left, color, delay }) {
   const sparkAngles = Array.from({ length: 10 }, (_, i) => i * 36);
@@ -753,7 +697,8 @@ function CountdownTimer({ startDateISO, totalDays }) {
   const todayMidnight = new Date();
   todayMidnight.setHours(0, 0, 0, 0);
   const rawDayNumber =
-    Math.round((todayMidnight - tripStartMidnight) / (1000 * 60 * 60 * 24)) + 1;
+    Math.round((todayMidnight - tripStartMidnight) / (1000 * 60 * 60 * 24)) +
+    1;
   const dayNumber = Math.max(
     1,
     totalDays ? Math.min(rawDayNumber, totalDays) : rawDayNumber
@@ -791,7 +736,8 @@ function CountdownTimer({ startDateISO, totalDays }) {
             🎉 旅程已經展開，祝您旅途愉快！
           </div>
           <div style={{ fontSize: 13.5, opacity: 0.85, marginTop: 4 }}>
-            現在是旅程第 {dayNumber} 天{totalDays ? `／共 ${totalDays} 天` : ""}
+            現在是旅程第 {dayNumber} 天
+            {totalDays ? `／共 ${totalDays} 天` : ""}
           </div>
         </>
       ) : (
@@ -934,7 +880,6 @@ function HomeView({
       })
       .catch(() => {})
       .finally(() => setCitySearching(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1076,9 +1021,7 @@ function HomeView({
             }}
           >
             <ImageIcon size={32} />
-            <div style={{ fontSize: 12.5, fontWeight: 600 }}>
-              尚未設定封面照片
-            </div>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>尚未設定封面照片</div>
           </div>
         )}
         <div
@@ -1302,12 +1245,7 @@ function HomeView({
           {weatherCities.length > 0 && (
             <div
               className="scrollbar-thin"
-              style={{
-                display: "flex",
-                gap: 6,
-                overflowX: "auto",
-                marginBottom: 10,
-              }}
+              style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10 }}
             >
               {weatherCities.map((c) => {
                 const active = c.id === activeCityId;
@@ -1319,9 +1257,7 @@ function HomeView({
                       display: "flex",
                       alignItems: "center",
                       gap: 4,
-                      border: active
-                        ? "1.5px solid #2F4538"
-                        : "1px solid #E4DCC8",
+                      border: active ? "1.5px solid #2F4538" : "1px solid #E4DCC8",
                       background: active ? "#2F4538" : "#FAF6EF",
                       color: active ? "#F4EFE3" : "#5C5745",
                       borderRadius: 8,
@@ -1389,14 +1325,7 @@ function HomeView({
                 </button>
               </div>
               {cityResults.length > 0 && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                  }}
-                >
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                   {cityResults.map((r, idx) => (
                     <button
                       key={idx}
@@ -1411,11 +1340,7 @@ function HomeView({
                         color: "#2B2822",
                       }}
                     >
-                      <MapPin
-                        size={12}
-                        color="#8A8168"
-                        style={{ marginRight: 4 }}
-                      />
+                      <MapPin size={12} color="#8A8168" style={{ marginRight: 4 }} />
                       {r.name}
                     </button>
                   ))}
@@ -1488,11 +1413,7 @@ function HomeView({
                     />
                     <div
                       className="serif"
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: "#2B2822",
-                      }}
+                      style={{ fontSize: 13, fontWeight: 700, color: "#2B2822" }}
                     >
                       {h.temp}°
                     </div>
@@ -1811,9 +1732,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
                 </button>
               </div>
               {(liveItem?.stops || []).length > 0 && (
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 6 }}
-                >
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {liveItem.stops.map((stop, idx) => (
                     <div
                       key={idx}
@@ -1872,9 +1791,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
                 }
                 style={{ width: 18, height: 18, accentColor: "#D4A017" }}
               />
-              <span
-                style={{ fontSize: 13.5, color: "#5C5745", fontWeight: 600 }}
-              >
+              <span style={{ fontSize: 13.5, color: "#5C5745", fontWeight: 600 }}>
                 需買票
               </span>
             </label>
@@ -1892,9 +1809,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
           >
             <input
               placeholder={
-                type === "shopping"
-                  ? "例如：三越百貨 名古屋店"
-                  : "例如：清水寺 京都"
+                type === "shopping" ? "例如：三越百貨 名古屋店" : "例如：清水寺 京都"
               }
               value={liveItem?.place || ""}
               onChange={(e) => ensureCreatedThenSet("place", e.target.value)}
@@ -1933,6 +1848,7 @@ function ItemModal({ dayId, initial, onClose, onCreate, onFieldChange }) {
     </div>
   );
 }
+
 
 // --- Notebook View ---
 function NotebookView({ notes, onChangeNote, onSaveNow }) {
@@ -2067,10 +1983,7 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
       } else {
         delete next.owner;
       }
-      if (
-        PLACE_ENABLED_CATEGORIES.includes(editingCategory) &&
-        editingPlace.trim()
-      ) {
+      if (PLACE_ENABLED_CATEGORIES.includes(editingCategory) && editingPlace.trim()) {
         next.place = editingPlace.trim();
       } else {
         delete next.place;
@@ -2742,9 +2655,7 @@ export default function App() {
         const data = docSnap.data();
         setTripName(data.tripName || "未命名旅程");
         setTripCountry(data.country || "");
-        setWeatherCities(
-          Array.isArray(data.weatherCities) ? data.weatherCities : []
-        );
+        setWeatherCities(Array.isArray(data.weatherCities) ? data.weatherCities : []);
         setCoverImage(data.coverImage || "");
         setNotes(data.notes || "");
 
@@ -3521,10 +3432,7 @@ export default function App() {
                                           gap: 4,
                                         }}
                                       >
-                                        <AlertCircle
-                                          size={13}
-                                          color="#D4A017"
-                                        />
+                                        <AlertCircle size={13} color="#D4A017" />
                                         需買票
                                       </span>
                                     )}
@@ -3731,13 +3639,9 @@ export default function App() {
                                             gap: 5,
                                           }}
                                         >
-                                          <MapPin size={12} /> 停靠 {sIdx + 1}：
-                                          {stop}
+                                          <MapPin size={12} /> 停靠 {sIdx + 1}：{stop}
                                         </span>
-                                        <ExternalLink
-                                          size={11}
-                                          color="#3D6E8C"
-                                        />
+                                        <ExternalLink size={11} color="#3D6E8C" />
                                       </a>
                                     ))}
                                   </div>
