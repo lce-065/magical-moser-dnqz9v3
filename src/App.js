@@ -36,7 +36,14 @@ import {
 
 // --- 1. Firebase 初始化 ---
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  deleteDoc,
+  collection,
+  onSnapshot,
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDgx9WhUA6HnhE8SVNoNuE4G98eEbseMHc",
@@ -280,6 +287,359 @@ function MapLink({ place, label, color = "#2F4538", onClick, style }) {
       )}
       <ExternalLink size={12} />
     </a>
+  );
+}
+
+// 雲端同步載入畫面（旅程清單載入中／單一旅程資料載入中 共用）
+function LoadingScreen({ text = "雲端同步載入中…" }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        background: "#FAF6EF",
+        color: "#2F4538",
+        gap: 20,
+      }}
+    >
+      <style>{`
+        @keyframes spin-sakura {
+          0% { transform: translate(-50%, -50%) rotate(0deg) scale(0.95); }
+          50% { transform: translate(-50%, -50%) rotate(180deg) scale(1.05); }
+          100% { transform: translate(-50%, -50%) rotate(360deg) scale(0.95); }
+        }
+        @keyframes pulse-glow {
+          0%, 100% { opacity: 0.6; transform: scale(0.9); }
+          50% { opacity: 1; transform: scale(1.1); }
+        }
+        .sakura-container {
+          position: relative;
+          width: 80px;
+          height: 80px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .japan-sun {
+          width: 36px;
+          height: 36px;
+          background-color: #C1633D;
+          border-radius: 50%;
+          box-shadow: 0 0 15px rgba(193, 99, 61, 0.3);
+          animation: pulse-glow 2s infinite ease-in-out;
+          z-index: 1;
+        }
+        .sakura-petals {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 80px;
+          height: 80px;
+          transform: translate(-50%, -50%);
+          animation: spin-sakura 6s infinite linear;
+        }
+        .petal {
+          position: absolute;
+          width: 14px;
+          height: 14px;
+          background: #FBEAE1;
+          border: 1px solid #E8B4B8;
+          border-radius: 12px 0 12px 0;
+          top: 50%;
+          left: 50%;
+        }
+        .petal-1 { transform: translate(-50%, -50%) rotate(0deg) translate(30px); }
+        .petal-2 { transform: translate(-50%, -50%) rotate(72deg) translate(30px); }
+        .petal-3 { transform: translate(-50%, -50%) rotate(144deg) translate(30px); }
+        .petal-4 { transform: translate(-50%, -50%) rotate(216deg) translate(30px); }
+        .petal-5 { transform: translate(-50%, -50%) rotate(288deg) translate(30px); }
+      `}</style>
+      <div className="sakura-container">
+        <div className="japan-sun" />
+        <div className="sakura-petals">
+          <div className="petal petal-1" />
+          <div className="petal petal-2" />
+          <div className="petal petal-3" />
+          <div className="petal petal-4" />
+          <div className="petal petal-5" />
+        </div>
+      </div>
+      <div
+        className="serif"
+        style={{ fontSize: 16, fontWeight: 700, color: "#2F4538" }}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
+// 旅程清單畫面：列出所有旅程卡片，可以新增或刪除旅程，點選後進入該趟旅程
+function TripListScreen({ tripList, onSelect, onCreate, onDelete }) {
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [country, setCountry] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const handleCreate = () => {
+    if (!name.trim()) return;
+    onCreate(name.trim(), country.trim());
+    setShowForm(false);
+    setName("");
+    setCountry("");
+  };
+
+  return (
+    <div style={{ background: "#FAF6EF", minHeight: "100vh" }}>
+      <div
+        style={{ maxWidth: 640, margin: "0 auto", padding: "28px 16px 60px" }}
+      >
+        <div
+          className="serif"
+          style={{
+            fontSize: 24,
+            fontWeight: 700,
+            color: "#2F4538",
+            marginBottom: 4,
+          }}
+        >
+          我的旅程
+        </div>
+        <div style={{ fontSize: 13, color: "#8A8168", marginBottom: 20 }}>
+          選擇一個旅程繼續規劃，或新增一趟新的旅程
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            marginBottom: 16,
+          }}
+        >
+          {tripList.map((trip) => (
+            <div
+              key={trip.id}
+              style={{
+                ...cardStyle,
+                padding: 0,
+                display: "flex",
+                alignItems: "stretch",
+              }}
+            >
+              <div
+                onClick={() => onSelect(trip.id)}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: 14,
+                  cursor: "pointer",
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: 54,
+                    height: 54,
+                    borderRadius: 10,
+                    overflow: "hidden",
+                    flexShrink: 0,
+                    background: "#EAF0EA",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {trip.coverImage ? (
+                    <img
+                      src={trip.coverImage}
+                      alt=""
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  ) : (
+                    <MapPin size={22} color="#8A4F9E" />
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    className="serif"
+                    style={{ fontSize: 16, fontWeight: 700, color: "#2B2822" }}
+                  >
+                    {trip.tripName || "未命名旅程"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#8A8168", marginTop: 2 }}>
+                    {trip.country ? `${trip.country} · ` : ""}
+                    {trip.days?.length || 0} 天行程
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setConfirmDeleteId(trip.id)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "#C1633D",
+                  padding: "0 14px",
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+          {tripList.length === 0 && (
+            <div
+              style={{
+                fontSize: 13,
+                color: "#8A8168",
+                textAlign: "center",
+                padding: "20px 0",
+              }}
+            >
+              目前還沒有任何旅程，新增第一趟吧！
+            </div>
+          )}
+        </div>
+
+        {confirmDeleteId && (
+          <div style={{ ...cardStyle, marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 13.5,
+                color: "#C1633D",
+                fontWeight: 600,
+                marginBottom: 10,
+              }}
+            >
+              確定要刪除「
+              {tripList.find((t) => t.id === confirmDeleteId)?.tripName ||
+                "此旅程"}
+              」嗎？此動作無法復原。
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => {
+                  onDelete(confirmDeleteId);
+                  setConfirmDeleteId(null);
+                }}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  background: "#C1633D",
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "9px",
+                  fontWeight: 700,
+                  fontSize: 13.5,
+                }}
+              >
+                確定刪除
+              </button>
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                style={{
+                  flex: 1,
+                  border: "1px solid #E4DCC8",
+                  background: "#fff",
+                  color: "#5C5745",
+                  borderRadius: 8,
+                  padding: "9px",
+                  fontSize: 13.5,
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showForm ? (
+          <div style={cardStyle}>
+            <Field label="旅程名稱">
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="例如：義大利蜜月之旅"
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="國家 / 地區（選填）">
+              <input
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                placeholder="例如：義大利"
+                style={inputStyle}
+              />
+            </Field>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={handleCreate}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  background: "#2F4538",
+                  color: "#fff",
+                  borderRadius: 10,
+                  padding: "12px",
+                  fontWeight: 700,
+                  fontSize: 14,
+                }}
+              >
+                建立旅程
+              </button>
+              <button
+                onClick={() => {
+                  setShowForm(false);
+                  setName("");
+                  setCountry("");
+                }}
+                style={{
+                  flex: 1,
+                  border: "1px solid #E4DCC8",
+                  background: "#fff",
+                  color: "#5C5745",
+                  borderRadius: 10,
+                  padding: "12px",
+                  fontSize: 14,
+                }}
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowForm(true)}
+            style={{
+              width: "100%",
+              padding: "14px",
+              borderRadius: 12,
+              border: "1.5px dashed #C9BFA8",
+              background: "transparent",
+              color: "#5C5745",
+              fontSize: 14,
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+          >
+            <Plus size={16} /> 新增旅程
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -2022,6 +2382,12 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
 
 // --- Main App Component ---
 export default function App() {
+  // 旅程清單（多趟旅程）
+  const [tripList, setTripList] = useState([]);
+  const [tripListLoaded, setTripListLoaded] = useState(false);
+  const [activeTripId, setActiveTripId] = useState(null);
+
+  // 目前開啟的這趟旅程的資料
   const [tripName, setTripName] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [notes, setNotes] = useState("");
@@ -2035,13 +2401,29 @@ export default function App() {
   const [confirmDeleteDayId, setConfirmDeleteDayId] = useState(null);
   const [syncError, setSyncError] = useState("");
 
+  // 讀取所有旅程的清單（trips 這個 collection 底下的每一份文件 = 一趟旅程）
   useEffect(() => {
-    const tripRef = doc(db, "trips", "kyoto-trip");
+    const tripsCol = collection(db, "trips");
+    const unsubscribe = onSnapshot(tripsCol, (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      setTripList(list);
+      setTripListLoaded(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 讀取目前選中的那趟旅程資料；切換旅程（activeTripId 改變）時重新訂閱
+  useEffect(() => {
+    if (!activeTripId) return;
+    setLoaded(false);
+    setActiveDay(null);
+    const tripRef = doc(db, "trips", activeTripId);
     const unsubscribe = onSnapshot(tripRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setTripName(data.tripName || "日本高山中部散策");
-        setCoverImage(data.coverImage || SAMPLE_TRIP.coverImage);
+        setTripName(data.tripName || "未命名旅程");
+        setCoverImage(data.coverImage || "");
         setNotes(data.notes || "");
 
         const loadedTodos = (data.todos || []).map((t) => ({
@@ -2071,19 +2453,25 @@ export default function App() {
           });
         }
       } else {
-        setDoc(tripRef, SAMPLE_TRIP);
+        // 理論上不會發生（旅程一定是先建立才會被選取），保險起見重置成空白狀態
+        setTripName("未命名旅程");
+        setCoverImage("");
+        setNotes("");
+        setTodos([]);
+        setDays([]);
       }
       setLoaded(true);
     });
     return () => unsubscribe();
-  }, []);
+  }, [activeTripId]);
 
   // 智慧合併同步：以「最新生成的項目陣列」與雲端現有項目做智慧聯集 (Smart Merge)
   // FIX: surface sync failures to the UI instead of only logging to console,
   // so a bad write (e.g. undefined fields, offline, etc.) is visible immediately.
   const syncToFirebaseWithMerge = async (newTodos) => {
+    if (!activeTripId) return;
     try {
-      const tripRef = doc(db, "trips", "kyoto-trip");
+      const tripRef = doc(db, "trips", activeTripId);
 
       // 取得最新本地 todos 並更新 State
       setTodos(newTodos);
@@ -2099,8 +2487,9 @@ export default function App() {
   };
 
   const syncGeneralToFirebase = async (patch = {}) => {
+    if (!activeTripId) return;
     try {
-      const tripRef = doc(db, "trips", "kyoto-trip");
+      const tripRef = doc(db, "trips", activeTripId);
       await setDoc(tripRef, patch, { merge: true });
       setSyncError("");
     } catch (err) {
@@ -2109,90 +2498,54 @@ export default function App() {
     }
   };
 
-  if (!loaded || (!activeDay && days.length > 0)) {
+  async function createTrip(name, country) {
+    const newTripRef = doc(collection(db, "trips"));
+    const newTripData = {
+      tripName: name || "新旅程",
+      country: country || "",
+      coverImage: "",
+      notes: "",
+      todos: [],
+      days: [
+        {
+          id: uid(),
+          date: todayISO(),
+          startPoint: "",
+          startPointNote: "",
+          items: [],
+        },
+      ],
+      createdAt: Date.now(),
+    };
+    await setDoc(newTripRef, newTripData);
+    setActiveTripId(newTripRef.id);
+  }
+
+  async function deleteTrip(id) {
+    await deleteDoc(doc(db, "trips", id));
+    if (activeTripId === id) setActiveTripId(null);
+  }
+
+  // 旅程清單本身還沒載完
+  if (!tripListLoaded) {
+    return <LoadingScreen />;
+  }
+
+  // 還沒選擇任何旅程 → 顯示旅程清單
+  if (!activeTripId) {
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          background: "#FAF6EF",
-          color: "#2F4538",
-          gap: 20,
-        }}
-      >
-        <style>{`
-          @keyframes spin-sakura {
-            0% { transform: translate(-50%, -50%) rotate(0deg) scale(0.95); }
-            50% { transform: translate(-50%, -50%) rotate(180deg) scale(1.05); }
-            100% { transform: translate(-50%, -50%) rotate(360deg) scale(0.95); }
-          }
-          @keyframes pulse-glow {
-            0%, 100% { opacity: 0.6; transform: scale(0.9); }
-            50% { opacity: 1; transform: scale(1.1); }
-          }
-          .sakura-container {
-            position: relative;
-            width: 80px;
-            height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          .japan-sun {
-            width: 36px;
-            height: 36px;
-            background-color: #C1633D;
-            border-radius: 50%;
-            box-shadow: 0 0 15px rgba(193, 99, 61, 0.3);
-            animation: pulse-glow 2s infinite ease-in-out;
-            z-index: 1;
-          }
-          .sakura-petals {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 80px;
-            height: 80px;
-            transform: translate(-50%, -50%);
-            animation: spin-sakura 6s infinite linear;
-          }
-          .petal {
-            position: absolute;
-            width: 14px;
-            height: 14px;
-            background: #FBEAE1;
-            border: 1px solid #E8B4B8;
-            border-radius: 12px 0 12px 0;
-            top: 50%;
-            left: 50%;
-          }
-          .petal-1 { transform: translate(-50%, -50%) rotate(0deg) translate(30px); }
-          .petal-2 { transform: translate(-50%, -50%) rotate(72deg) translate(30px); }
-          .petal-3 { transform: translate(-50%, -50%) rotate(144deg) translate(30px); }
-          .petal-4 { transform: translate(-50%, -50%) rotate(216deg) translate(30px); }
-          .petal-5 { transform: translate(-50%, -50%) rotate(288deg) translate(30px); }
-        `}</style>
-        <div className="sakura-container">
-          <div className="japan-sun" />
-          <div className="sakura-petals">
-            <div className="petal petal-1" />
-            <div className="petal petal-2" />
-            <div className="petal petal-3" />
-            <div className="petal petal-4" />
-            <div className="petal petal-5" />
-          </div>
-        </div>
-        <div
-          className="serif"
-          style={{ fontSize: 16, fontWeight: 700, color: "#2F4538" }}
-        >
-          雲端同步載入中…
-        </div>
-      </div>
+      <TripListScreen
+        tripList={tripList}
+        onSelect={setActiveTripId}
+        onCreate={createTrip}
+        onDelete={deleteTrip}
+      />
     );
+  }
+
+  // 選定了某趟旅程，但資料還在載入
+  if (!loaded || (!activeDay && days.length > 0)) {
+    return <LoadingScreen />;
   }
 
   const currentDay = days.find((d) => d.id === activeDay) || days[0];
@@ -2371,6 +2724,25 @@ export default function App() {
               </h1>
             )}
           </div>
+          <button
+            onClick={() => setActiveTripId(null)}
+            title="返回旅程清單"
+            style={{
+              border: "1px solid rgba(244,239,227,0.35)",
+              background: "rgba(244,239,227,0.1)",
+              color: "#F4EFE3",
+              borderRadius: 9,
+              padding: "8px 12px",
+              fontSize: 12.5,
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              flexShrink: 0,
+            }}
+          >
+            <Home size={14} /> 旅程清單
+          </button>
         </div>
       </header>
 
