@@ -85,8 +85,17 @@ function routeUrl(from, to, waypoints = []) {
   )}&destination=${encodeURIComponent(to)}${waypointsParam}&travelmode=transit`;
 }
 
+// 用「本地時區」的年月日組成 YYYY-MM-DD，取代 toISOString()（那個是 UTC 時間，
+// 在 UTC+8 這類時區會在午夜到清晨之間整個算錯成前一天，Day2/Day3 日期卡住不跳就是這個原因）
+function toLocalISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISODate(new Date());
 }
 
 function fmtDateLabel(iso) {
@@ -2791,7 +2800,7 @@ export default function App() {
     base.setDate(base.getDate() + 1);
     const newDay = {
       id: uid(),
-      date: base.toISOString().slice(0, 10),
+      date: toLocalISODate(base),
       startPoint: "",
       startPointNote: "",
       items: [],
