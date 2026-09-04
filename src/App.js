@@ -2368,6 +2368,38 @@ function ChecklistView({ todos = [], setTodos, onSaveNow }) {
                                   fontSize: 14,
                                 }}
                               />
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 4,
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                {Object.entries(TODO_CATEGORIES).map(([key, cfg]) => (
+                                  <button
+                                    key={key}
+                                    onClick={() => setEditingCategory(key)}
+                                    style={{
+                                      padding: "3px 8px",
+                                      borderRadius: 5,
+                                      border:
+                                        editingCategory === key
+                                          ? `1.5px solid ${cfg.color}`
+                                          : "1px solid #E4DCC8",
+                                      background:
+                                        editingCategory === key ? cfg.bg : "#fff",
+                                      color:
+                                        editingCategory === key
+                                          ? cfg.color
+                                          : "#8A8168",
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {cfg.label}
+                                  </button>
+                                ))}
+                              </div>
                               <input
                                 value={editingNote}
                                 onChange={(e) => setEditingNote(e.target.value)}
